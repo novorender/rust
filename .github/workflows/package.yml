@@ -27,5 +27,5 @@ jobs:
       with:
         name: package
         path: |
-          pkg/*.tgz
+          pkg/novorender_rust-0.1.0.tgz
 
