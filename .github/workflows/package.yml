@@ -22,4 +22,10 @@ jobs:
       run: wasm-pack build
     - name: Package
       run: wasm-pack pack
+    - name: Archive package
+      uses: actions/upload-artifact@v3
+      with:
+        name: package
+        path: |
+          pkg/*.tgz
 
