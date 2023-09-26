@@ -1,0 +1,25 @@
+[package]
+name = "rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+half = "2.3.1"
+wasm-bindgen = { version = "0.2.87", features = [] }
+console_error_panic_hook = { version = "0.1.7", optional = true }
+wee_alloc = "0.4.5"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.34"
+
+[profile.release]
+# Tell `rustc` to optimize for small code size.
+opt-level = "s"
+
+[features]
+default = ["console_error_panic_hook"]
