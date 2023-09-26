@@ -27,6 +27,6 @@ fn conversions() {
     const VAL_F16: f16 = f16::from_f32_const(VAL_F32); // cast to float16
     const VAL_U16: u16 = VAL_F16.to_bits(); // bitcast to u16
     assert_eq!(float16(VAL_F32), VAL_U16);
-    assert_eq!(float32(VAL_U16), VAL_F32);
+    assert_eq!(float32(VAL_U16), f16::from_f32_const(VAL_F32).to_f32());
     assert_eq!(float16(float32(VAL_U16)), VAL_U16);
 }
