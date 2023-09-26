@@ -22,9 +22,11 @@ jobs:
       run: wasm-pack build
     - name: Package
       run: wasm-pack pack
+    - name: Retrieve_Version
+      run: export PKG_VERSION=$(cargo pkgid -pnovorender-rust | sed "s/.*@\(.*\)/\1/g")
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
-        name: novorender-rust-0.1.0
-        path: pkg/novorender-rust-0.1.0.tgz
+        name: novorender-rust-${{ env.PKG_VERSION }}
+        path: pkg/novorender-rust-${{ env.PKG_VERSION }}.tgz
 
