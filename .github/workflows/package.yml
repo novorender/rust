@@ -25,13 +25,15 @@ jobs:
         # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
         version: 'latest'
     - name: Build
-      run: wasm-pack build
+      run: wasm-pack build --scope=@novorender
     - name: Package
       run: wasm-pack pack
     - name: Retrieve_Version
       run: echo "PKG_VERSION=$(cargo pkgid -pnovorender-rust | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
     - name: Create registry auth
       run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+    - name: Login
+      run: wasm-pack login --scope=@novorender --auth-type=legacy --registry=https://npm.pkg.github.com
     - name: Publish package
       run: wasm-pack publish
     - name: Archive package
