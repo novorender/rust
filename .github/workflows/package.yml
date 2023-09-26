@@ -23,7 +23,7 @@ jobs:
     - name: Package
       run: wasm-pack pack
     - name: Retrieve_Version
-      run: echo "export PKG_VERSION=$(cargo pkgid -pnovorender-rust | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
+      run: echo "PKG_VERSION=$(cargo pkgid -pnovorender-rust | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
