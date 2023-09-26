@@ -27,7 +27,7 @@ jobs:
     - name: Create registry auth
       run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
     - name: Build
-      run: wasm-pack build --scope=@novorender
+      run: wasm-pack build --scope=novorender
     - name: Package
       run: wasm-pack pack
     - name: Retrieve_Version
