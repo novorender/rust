@@ -17,14 +17,20 @@ jobs:
     #   packages: write
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: jetli/wasm-pack-action@v0.4.0
       with:
         # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
         version: 'latest'
-    - name: Create registry auth
-      run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 16
+        registry-url: https://npm.pkg.github.com/
+    # - name: Create registry auth
+    #   run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       # run: npm set //npm.pkg.github.com/:_authToken ${{ secrets.GITHUB_TOKEN }}
+    - name: Config registry
+      run: echo "@arturoc:registry=https://npm.pkg.github.com" >> ~/.npmrc
     - name: Build
       run: wasm-pack build --scope=novorender
     # - name: Package
@@ -34,8 +40,10 @@ jobs:
     # - name: Login
     #   run: wasm-pack login --scope=@novorender --auth-type=legacy --registry=https://npm.pkg.github.com
     - name: Publish package
-      # run: wasm-pack publish --access=public
-      run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
+      run: wasm-pack publish --access=public
+      # run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
+      env:
+        NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
