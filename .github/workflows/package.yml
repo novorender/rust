@@ -27,6 +27,6 @@ jobs:
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
-        name: novorender-rust-${{ env.PKG_VERSION }}
+        name: novorender-rust-${{ env.PKG_VERSION }}-${{github.sha}}
         path: pkg/novorender-rust-${{ env.PKG_VERSION }}.tgz
 
