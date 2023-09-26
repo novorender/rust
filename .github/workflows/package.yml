@@ -14,9 +14,9 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      packages: write
+    # permissions:
+    #   contents: read
+    #   packages: write
 
     steps:
     - uses: actions/checkout@v3
@@ -24,6 +24,8 @@ jobs:
       with:
         # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
         version: 'latest'
+    - name: Debug npmrc
+      run: echo ~/.npmrc
     - name: Create registry auth
       run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
     - name: Build
