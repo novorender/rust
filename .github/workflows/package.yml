@@ -28,15 +28,15 @@ jobs:
       run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
     - name: Build
       run: wasm-pack build --scope=novorender
-    - name: Package
-      run: wasm-pack pack
+    # - name: Package
+    #   run: wasm-pack pack
     - name: Retrieve_Version
       run: echo "PKG_VERSION=$(cargo pkgid -pnovorender-rust | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
     # - name: Login
     #   run: wasm-pack login --scope=@novorender --auth-type=legacy --registry=https://npm.pkg.github.com
     - name: Publish package
       # run: wasm-pack publish --access=public
-      run: npm publish ./pkg/novorender-rust-${{ env.PKG_VERSION }}.tgz --access public
+      run: npm publish ./pkg --access public
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
