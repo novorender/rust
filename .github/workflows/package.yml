@@ -25,7 +25,6 @@ jobs:
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
-        name: package
-        path: |
-          pkg/novorender-rust-0.1.0.tgz
+        name: novorender-rust-0.1.0
+        path: pkg/novorender-rust-0.1.0.tgz
 
