@@ -35,7 +35,7 @@ jobs:
     #   run: wasm-pack login --scope=@novorender --auth-type=legacy --registry=https://npm.pkg.github.com
     - name: Publish package
       # run: wasm-pack publish --access=public
-      run: npm --userconfig ~/.npmrc publish ./pkg --access public
+      run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
     - name: Archive package
       uses: actions/upload-artifact@v3
       with:
