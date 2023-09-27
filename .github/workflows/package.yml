@@ -40,7 +40,7 @@ jobs:
       run: echo "@arturoc:registry=https://npm.pkg.github.com" >> ~/.npmrc
     - name: Build
       if: env.PKG_VERSION != env.PUBLISHED_VERSION
-      run: wasm-pack build --scope=novorender --target nodejs
+      run: wasm-pack build --scope=novorender --target bundler
     # - name: Package
     #   run: wasm-pack pack
     # - name: Login
