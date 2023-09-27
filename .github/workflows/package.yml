@@ -26,6 +26,10 @@ jobs:
       with:
         node-version: 16
         registry-url: https://npm.pkg.github.com/
+    - name: Config registry
+      run: echo "@arturoc:registry=https://npm.pkg.github.com" >> ~/.npmrc
+    - name: Test npm view
+      run: npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }}
     - name: Generate Cargo.lock
       run: cargo update
     - name: Retrieve pkg name
@@ -35,9 +39,6 @@ jobs:
     - name: Retrieve last published version
       if: always()
       run: echo "PUBLISHED_VERSION=$(if npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }} version 2> /dev/null; then echo ''; else echo '0.0.0'; fi)" >> $GITHUB_ENV
-    - name: Config registry
-      if: env.PKG_VERSION != env.PUBLISHED_VERSION
-      run: echo "@arturoc:registry=https://npm.pkg.github.com" >> ~/.npmrc
     - name: Build
       if: env.PKG_VERSION != env.PUBLISHED_VERSION
       run: wasm-pack build --scope=novorender --target bundler
