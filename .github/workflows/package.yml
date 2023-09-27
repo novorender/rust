@@ -11,6 +11,8 @@ jobs:
   build-and-push-image:
 
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
     # permissions:
     #   contents: read
@@ -50,6 +52,4 @@ jobs:
       if: env.PKG_VERSION != env.PUBLISHED_VERSION
       run: wasm-pack publish --access=public
       # run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
-      env:
-        NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
