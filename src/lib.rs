@@ -21,6 +21,12 @@ pub fn float32(v: u16) -> f32 {
     f16::from_bits(v).to_f32_const()
 }
 
+/// Dummy
+#[wasm_bindgen]
+pub fn dummy() -> f32 {
+    42.
+}
+
 #[test]
 fn conversions() {
     const VAL_F32: f32 = 3.141592653589793; // original float32 value
