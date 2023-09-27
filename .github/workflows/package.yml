@@ -51,10 +51,4 @@ jobs:
       # run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
       env:
         NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-    # - name: Archive package
-    #   if: env.PKG_VERSION != env.PUBLISHED_VERSION
-    #   uses: actions/upload-artifact@v3
-    #   with:
-    #     name: ${{ env.PKG_NAME }}-${{ env.PKG_VERSION }}-${{github.sha}}
-    #     path: pkg/${{ env.PKG_NAME }}-${{ env.PKG_VERSION }}.tgz
 
