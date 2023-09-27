@@ -26,6 +26,8 @@ jobs:
       with:
         node-version: 16
         registry-url: https://npm.pkg.github.com/
+    - name: Generate Cargo.lock
+      run: cargo update
     - name: Retrieve pkg name
       run: echo "PKG_NAME=$(cargo pkgid | sed 's/.*#\(.*\)@\(.*\)/\1/g')" >> $GITHUB_ENV
     - name: Retrieve version
