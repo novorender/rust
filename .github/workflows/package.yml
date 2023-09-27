@@ -28,14 +28,14 @@ jobs:
         registry-url: https://npm.pkg.github.com/
     - name: Config registry
       run: echo "@arturoc:registry=https://npm.pkg.github.com" >> ~/.npmrc
-    - name: Test npm view
-      run: npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }}
     - name: Generate Cargo.lock
       run: cargo update
     - name: Retrieve pkg name
       run: echo "PKG_NAME=$(cargo pkgid | sed 's/.*#\(.*\)@\(.*\)/\1/g')" >> $GITHUB_ENV
     - name: Retrieve version
       run: echo "PKG_VERSION=$(cargo pkgid | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
+    - name: Test npm view
+      run: npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }}
     - name: Retrieve last published version
       if: always()
       run: echo "PUBLISHED_VERSION=$(if npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }} version 2> /dev/null; then echo ''; else echo '0.0.0'; fi)" >> $GITHUB_ENV
