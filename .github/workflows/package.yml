@@ -42,12 +42,9 @@ jobs:
     - name: Build
       if: env.PKG_VERSION != env.PUBLISHED_VERSION
       run: wasm-pack build --scope=novorender --target bundler
-    # - name: Package
-    #   run: wasm-pack pack
-    # - name: Login
-    #   run: wasm-pack login --scope=@novorender --auth-type=legacy --registry=https://npm.pkg.github.com
     - name: Publish package
       if: env.PKG_VERSION != env.PUBLISHED_VERSION
       run: wasm-pack publish --access=public
+      # use npm instead of wasm-pack to publish:
       # run: npm --userconfig ~/.npmrc --registry https://npm.pkg.github.com publish ./pkg --access public
 
