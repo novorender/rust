@@ -34,7 +34,7 @@ jobs:
       run: echo "PKG_VERSION=$(cargo pkgid | sed 's/.*@\(.*\)/\1/g')" >> $GITHUB_ENV
     - name: Retrieve last published version
       if: always()
-      run: echo "PUBLISHED_VERSION=$(npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }}" version; if $? != 0; then echo 0.0.0; fi)" >> $GITHUB_ENV
+      run: echo "PUBLISHED_VERSION=$(npm view --registry https://npm.pkg.github.com @novorender/${{ env.PKG_NAME }} version 2> /dev/null; if $? != 0; then echo 0.0.0; fi)" >> $GITHUB_ENV
     # - name: Create registry auth
     #   run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
       # run: npm set //npm.pkg.github.com/:_authToken ${{ secrets.GITHUB_TOKEN }}
