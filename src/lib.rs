@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(target_family="wasm", no_std)]
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -6,33 +6,76 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+use core::mem::size_of;
 use wasm_bindgen::prelude::*;
-use half::f16;
 
-/// Converts f16 to f32
+#[cfg(feature = "console")]
+macro_rules! log {
+    // ( $( $t:tt )* ) => {
+    //     web_sys::console::log_1(&format!( $( $t )* ).into());
+    // }
+    ( $t:expr ) => {
+        web_sys::console::log_1(&JsValue::from_str($t));
+    }
+}
+
 #[wasm_bindgen]
-pub fn float16(v: f32) -> u16 {
-    f16::from_f32_const(v).to_bits()
+pub fn init() {
+    #[cfg(feature = "console_error_panic_hook")]
+    console_error_panic_hook::set_once();
 }
 
-/// Converts f32 to f16
-#[wasm_bindgen]
-pub fn float32(v: u16) -> f32 {
-    f16::from_bits(v).to_f32_const()
+macro_rules! primitive_function_impl {
+    ($name: ident, $dst_ty: ty, $src_ty: ty) => {
+        paste::paste!{
+            #[wasm_bindgen]
+            pub fn [<$name _ $dst_ty>](dst: &mut [$dst_ty], src: $src_ty, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
+                $name(dst, src, byte_offset, byte_stride, begin, end)
+            }
+        }
+    };
 }
 
-/// Dummy
-#[wasm_bindgen]
-pub fn dummy() -> f32 {
-    42.
+fn copy_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: &[T], byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for (dst, src) in dst[offset..].iter_mut().step_by(stride).zip(&src[begin..end]) {
+        *dst = *src
+    }
 }
 
-#[test]
-fn conversions() {
-    const VAL_F32: f32 = 3.141592653589793; // original float32 value
-    const VAL_F16: f16 = f16::from_f32_const(VAL_F32); // cast to float16
-    const VAL_U16: u16 = VAL_F16.to_bits(); // bitcast to u16
-    assert_eq!(float16(VAL_F32), VAL_U16);
-    assert_eq!(float32(VAL_U16), f16::from_f32_const(VAL_F32).to_f32());
-    assert_eq!(float16(float32(VAL_U16)), VAL_U16);
+primitive_function_impl!(copy_to_interleaved_array, u8, &[u8]);
+primitive_function_impl!(copy_to_interleaved_array, u16, &[u16]);
+primitive_function_impl!(copy_to_interleaved_array, u32, &[u32]);
+primitive_function_impl!(copy_to_interleaved_array, i8, &[i8]);
+primitive_function_impl!(copy_to_interleaved_array, i16, &[i16]);
+primitive_function_impl!(copy_to_interleaved_array, i32, &[i32]);
+primitive_function_impl!(copy_to_interleaved_array, f32, &[f32]);
+primitive_function_impl!(copy_to_interleaved_array, f64, &[f64]);
+
+fn fill_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: T, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    let end = (offset + stride * (end - begin)).min(dst.len());
+
+    for dst in dst[offset..end].iter_mut().step_by(stride) {
+        *dst = src;
+    }
 }
+
+primitive_function_impl!(fill_to_interleaved_array, u8, u8);
+primitive_function_impl!(fill_to_interleaved_array, u16, u16);
+primitive_function_impl!(fill_to_interleaved_array, u32, u32);
+primitive_function_impl!(fill_to_interleaved_array, i8, i8);
+primitive_function_impl!(fill_to_interleaved_array, i16, i16);
+primitive_function_impl!(fill_to_interleaved_array, i32, i32);
+primitive_function_impl!(fill_to_interleaved_array, f32, f32);
+primitive_function_impl!(fill_to_interleaved_array, f64, f64);

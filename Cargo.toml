@@ -1,25 +1,27 @@
 [package]
-name = "wasm"
+name = "wasm-parser"
 version = "0.1.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-half = "2.3.1"
 wasm-bindgen = { version = "0.2.87", features = [] }
 console_error_panic_hook = { version = "0.1.7", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
+web-sys = { version = "0.3.64", features = ["console"], optional = true }
+paste = "1.0.14"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
 
 [profile.release]
-# Tell `rustc` to optimize for small code size.
-opt-level = "s"
+lto =  true
 
 [features]
-default = ["console_error_panic_hook"]
+console = ["web-sys"]
+unstable = []
+# default = ["console_error_panic_hook"]

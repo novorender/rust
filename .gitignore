@@ -2,3 +2,4 @@ target
 pkg
 .cargo
 Cargo.lock
+test-app
