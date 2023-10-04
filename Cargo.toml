@@ -14,6 +14,10 @@ console_error_panic_hook = { version = "0.1.7", optional = true }
 wee_alloc = { version = "0.4.5", optional = true }
 web-sys = { version = "0.3.64", features = ["console"], optional = true }
 paste = "1.0.14"
+bitflags = { version = "2.4.0", features = ["serde", "bytemuck"] }
+half = { version = "2.3.1", features = ["bytemuck", "serde"] }
+anyhow = "1.0.75"
+bytemuck = { version = "1.14.0", features = [ "derive" ] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
@@ -22,6 +26,6 @@ wasm-bindgen-test = "0.3.34"
 lto =  true
 
 [features]
-console = ["web-sys"]
+console = ["web-sys", "console_error_panic_hook"]
 unstable = []
 # default = ["console_error_panic_hook"]

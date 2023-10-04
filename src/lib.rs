@@ -8,6 +8,10 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use core::mem::size_of;
 use wasm_bindgen::prelude::*;
+pub mod parser;
+pub mod utils;
+pub mod types;
+
 
 #[cfg(feature = "console")]
 macro_rules! log {
@@ -20,7 +24,7 @@ macro_rules! log {
 }
 
 #[wasm_bindgen]
-pub fn init() {
+pub fn init_console() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 }
