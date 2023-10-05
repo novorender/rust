@@ -1,199 +1,13 @@
-use core::{ptr::NonNull, marker::PhantomData, slice, mem::size_of};
+/// Types SoA to AoS
+
+use core::mem::size_of;
 
 use half::f16;
 
 use crate::log;
-
-#[derive(Clone, Copy)]
-pub struct ThinSlice<'a, T> {
-    start: NonNull<T>,
-    #[cfg(debug_assertions)]
-    len: usize,
-    marker: PhantomData<&'a ()>,
-}
-
-impl<'a, T> ThinSlice<'a, T> {
-    pub fn from_data_and_offset(data: &'a [u8], offset: usize, len: u32) -> ThinSlice<'a, T> {
-        let ptr = unsafe{ NonNull::new_unchecked(data[offset..].as_ptr() as *const T as *mut T) };
-        ThinSlice {
-            start: ptr,
-            #[cfg(debug_assertions)]
-            len: len as usize,
-            marker: PhantomData,
-        }
-    }
-
-    pub fn empty() -> ThinSlice<'a, T>
-    where T: 'a
-    {
-        Self::from(&[])
-    }
-
-    pub unsafe fn as_slice(self, len: u32) -> &'a [T] {
-        #[cfg(debug_assertions)]
-        debug_assert_eq!(self.len, len as usize);
-
-        NonNull::slice_from_raw_parts(self.start, len as usize).as_ref()
-    }
-
-    pub unsafe fn slice_range(self, range: RangeInstance<u32>) -> &'a [T] {
-        #[cfg(debug_assertions)]
-        debug_assert!(self.len >= (range.start + range.count) as usize, "len: {} range: {:?}", self.len, range);
-
-        slice::from_raw_parts(self.start.as_ptr().add(range.start as usize), range.count as usize).as_ref()
-    }
-
-    pub unsafe fn range(self, range: RangeInstance<u32>) -> ThinSlice<'a, T>
-    where T: 'a
-    {
-        #[cfg(debug_assertions)]
-        debug_assert!(self.len >= (range.start + range.count) as usize);
-
-        self.slice_range(range).into()
-    }
-
-    pub unsafe fn get(self, index: usize) -> &'a T {
-        #[cfg(debug_assertions)]
-        debug_assert!(index < self.len);
-
-        &*self.start.as_ptr().add(index)
-    }
-
-    pub fn iter(self) -> ThinSliceIter<'a, T> {
-        ThinSliceIter {
-            start: self.start,
-            #[cfg(debug_assertions)]
-            len: self.len,
-            marker: PhantomData
-        }
-    }
-}
-
-pub struct ThinSliceIter<'a, T> {
-    start: NonNull<T>,
-    #[cfg(debug_assertions)]
-    len: usize,
-    marker: PhantomData<&'a ()>,
-}
-
-impl<'a, T: 'a> ThinSliceIterator for ThinSliceIter<'a, T> {
-    type Item = &'a T;
-
-    unsafe fn next(&mut self) -> Self::Item {
-        unsafe{
-            #[cfg(debug_assertions)]
-            {
-                debug_assert_ne!(self.len, 0);
-                self.len -= 1;
-            }
-            let ret = self.start.as_ref();
-            self.start = NonNull::new_unchecked(self.start.as_ptr().add(1));
-            ret
-        }
-    }
-}
-
-impl<'a, T> From<&'a [T]> for ThinSlice<'a, T> {
-    fn from(value: &'a [T]) -> Self {
-        let ptr = value.as_ptr() as *mut T;
-        ThinSlice {
-            // SAFETY: We are referencing into a slice so it can't be null
-            start: unsafe{ NonNull::new_unchecked(ptr) },
-            #[cfg(debug_assertions)]
-            len: value.len(),
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<'a, T> From<&'a [T;0]> for ThinSlice<'a, T> {
-    fn from(value: &'a [T;0]) -> Self {
-        let ptr = value.as_ptr() as *mut T;
-        ThinSlice {
-            // SAFETY: We are referencing into a slice so it can't be null
-            start: unsafe{ NonNull::new_unchecked(ptr) },
-            #[cfg(debug_assertions)]
-            len: value.len(),
-            marker: PhantomData,
-        }
-    }
-}
-
-pub trait ThinSliceIterator {
-    type Item;
-
-    unsafe fn next(&mut self) -> Self::Item;
-}
-
-#[derive(Clone, Copy)]
-pub struct Range<'a, T> {
-    pub start: ThinSlice<'a, T>,
-    pub count: ThinSlice<'a, T>,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct RangeInstance<T> {
-    pub start: T,
-    pub count: T,
-}
-
-impl<'a, T: Copy> Range<'a, T> {
-    pub unsafe fn get(&self, index: usize) -> RangeInstance<T> {
-        RangeInstance{ start: *self.start.get(index), count: *self.count.get(index)}
-    }
-}
-
-impl<T: std::ops::Add<Output = T> + Copy> Into<std::ops::Range<T>> for RangeInstance<T> {
-    fn into(self) -> std::ops::Range<T> {
-        self.start .. self.start + self.count
-    }
-}
-pub struct RangeIter<'a, T> {
-    pub(crate) start: ThinSliceIter<'a, T>,
-    pub(crate) count: ThinSliceIter<'a, T>,
-}
-
-impl<'a, T: Copy + 'a> ThinSliceIterator for RangeIter<'a, T> {
-    type Item = RangeInstance<T>;
-
-    unsafe fn next(&mut self) -> RangeInstance<T> {
-        RangeInstance {
-            start: unsafe{ *self.start.next() },
-            count: unsafe{ *self.count.next() },
-        }
-    }
-}
-
-#[macro_export]
-macro_rules! impl_range_iter {
-    ($name: ident, $ty: ty) => {
-        paste::paste!{
-            pub struct [<$name Instance>] (pub $crate::utils::RangeInstance<$ty>);
-
-            pub struct [<$name Iter>]<'a> ($crate::utils::RangeIter<'a, $ty>);
-
-            impl<'a> $name<'a> {
-                pub fn iter(&self) -> [<$name Iter>]<'a> {
-                    [<$name Iter>] ($crate::utils::RangeIter {
-                        start: self.0.start.iter(),
-                        count: self.0.count.iter(),
-                    })
-                }
-            }
-
-            impl<'a> $crate::utils::ThinSliceIterator for [<$name Iter>]<'a> {
-                type Item = [<$name Instance>];
-
-                unsafe fn next(&mut self) -> [<$name Instance>] {
-                    [<$name Instance>](unsafe{ self.0.next() })
-                }
-            }
-        }
-    };
-}
-
-// Types SoA to AoS
-use crate::types::*;
+use crate::types_2_0::*;
+use crate::thin_slice::{ThinSliceIter, ThinSliceIterator};
+use crate::range::RangeInstance;
 
 #[derive(Clone, Copy)]
 pub struct Float3Instance {
@@ -432,7 +246,6 @@ impl<'a> ChildInfo<'a> {
             scale: self.scale.iter(),
             bounds: self.bounds.iter(),
             sub_meshes: self.sub_meshes.iter(),
-            descendant_object_ids: self.descendant_object_ids.iter(),
         }
     }
 }
@@ -447,7 +260,6 @@ pub struct ChildInfoInstance<'a> {
     pub scale: f32,
     pub bounds: BoundsInstance,
     pub sub_meshes: SubMeshProjection<'a>,
-    pub descendant_object_ids: &'a [DescendantObjectIds]
 }
 
 pub struct ChildInfoIter<'a> {
@@ -462,7 +274,6 @@ pub struct ChildInfoIter<'a> {
     scale: ThinSliceIter<'a, f32>,
     bounds: BoundsIter<'a>,
     sub_meshes: SubMeshProjectionRangeIter<'a>,
-    descendant_object_ids: DescendantObjectIdsRangeIter<'a>,
 }
 
 impl<'a> Iterator for ChildInfoIter<'a> {
@@ -477,15 +288,10 @@ impl<'a> Iterator for ChildInfoIter<'a> {
         self.len -= 1;
 
         let hash_range = unsafe{ self.hash.next() };
-        log!("hash_range.0.start + hash_range.0.count: {}, self.schema.hash_bytes.len: {}", hash_range.0.start + hash_range.0.count, self.schema.hash_bytes.len);
         let hash = unsafe{ self.schema.hash_bytes.slice_range(hash_range.0) };
 
         let sub_meshes_range = unsafe{ self.sub_meshes.next() };
         let sub_meshes = unsafe{ self.schema.sub_mesh_projection.range(sub_meshes_range.0) };
-
-        let descendant_obj_ids_range = unsafe{ self.descendant_object_ids.next() };
-        log!("descendant_obj_ids_range.0.start + descendant_obj_ids_range.0.count: {}, self.schema.descendant_object_ids.len: {}", descendant_obj_ids_range.0.start + descendant_obj_ids_range.0.count, self.schema.descendant_object_ids.len);
-        let descendant_object_ids = unsafe{ self.schema.descendant_object_ids.slice_range(descendant_obj_ids_range.0) };
 
         Some(ChildInfoInstance {
             hash,
@@ -497,7 +303,6 @@ impl<'a> Iterator for ChildInfoIter<'a> {
             scale: unsafe{ *self.scale.next() },
             bounds: unsafe{ self.bounds.next() },
             sub_meshes,
-            descendant_object_ids,
         })
 
 
@@ -709,7 +514,7 @@ fn test_to_hex() {
     assert_eq!(to_hex(&[1, 2, 15, 3]), "01020F03")
 }
 
-pub struct Child<'a> {
+pub struct Child {
     pub id: String,
     pub child_index: u8,
     pub child_mask: u32,
@@ -721,11 +526,10 @@ pub struct Child<'a> {
     pub primitives: usize,
     pub primitives_delta: usize,
     pub gpu_bytes: usize,
-    pub descendant_object_ids: &'a [u32]
 }
 
 impl<'a> Schema<'a> {
-    pub fn children(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool + Copy) -> impl Iterator<Item = Child> {
+    pub fn children(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl Iterator<Item = Child> + '_ {
         self.child_info.iter(self).map(move |child_info| {
             let id = to_hex(child_info.hash);
             let f32_offset = child_info.offset.into();
@@ -758,7 +562,6 @@ impl<'a> Schema<'a> {
                 primitives,
                 primitives_delta,
                 gpu_bytes,
-                descendant_object_ids: child_info.descendant_object_ids,
             }
         })
     }

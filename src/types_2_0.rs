@@ -1,7 +1,8 @@
 use bitflags::bitflags;
 use half::f16;
 
-use crate::utils::{ThinSlice, Range};
+use crate::thin_slice::ThinSlice;
+use crate::range::Range;
 use crate::impl_range_iter;
 #[cfg(feature = "checked_types")]
 use bytemuck::{Pod, Zeroable, CheckedBitPattern};
@@ -208,7 +209,6 @@ pub struct ChildInfo<'a> {
     pub bounds: Bounds<'a>,
 
     pub sub_meshes: SubMeshProjectionRange<'a>,
-    pub descendant_object_ids: DescendantObjectIdsRange<'a>,
 }
 
 
@@ -303,12 +303,6 @@ pub struct HashRange<'a>(pub Range<'a, u32>);
 
 impl_range_iter!(HashRange, u32);
 
-/// Range into descendantObjectIdsRange.
-#[derive(Clone, Copy)]
-pub struct DescendantObjectIdsRange<'a>(pub Range<'a, u32>);
-
-impl_range_iter!(DescendantObjectIdsRange, u32);
-
 /// Mesh vertices
 #[derive(Clone, Copy)]
 
@@ -329,10 +323,8 @@ pub struct TextureInfoRange<'a>(pub Range<'a, u8>);
 impl_range_iter!(TextureInfoRange, u8);
 
 pub struct Schema<'a> {
-    pub version: &'static str,
     pub child_info: ChildInfo<'a>,
     pub hash_bytes: ThinSlice<'a, HashBytes>,
-    pub descendant_object_ids: ThinSlice<'a, DescendantObjectIds>,
     pub sub_mesh_projection: SubMeshProjection<'a>,
     pub sub_mesh: SubMesh<'a>,
     pub texture_info: TextureInfo<'a>,

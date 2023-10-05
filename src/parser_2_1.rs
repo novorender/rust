@@ -2,8 +2,9 @@ use core::mem::{size_of, align_of};
 
 use anyhow::Result;
 
-use crate::utils::{ThinSlice, Range};
-use crate::types::*;
+use crate::thin_slice::ThinSlice;
+use crate::range::Range;
+use crate::types_2_1::*;
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
 #[repr(C)]
@@ -313,7 +314,6 @@ impl<'a> Schema<'a> {
         debug_assert_eq!(reader.next, reader.data.len());
 
         Ok(Schema {
-            version: "2.1",
             child_info,
             hash_bytes,
             descendant_object_ids,
