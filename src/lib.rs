@@ -6,7 +6,7 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-use core::{mem::size_of, slice, mem, ffi::c_void};
+use core::{mem::size_of, mem, ffi::c_void};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
