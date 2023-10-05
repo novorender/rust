@@ -1,4 +1,4 @@
-#![cfg_attr(target_family="wasm", no_std)]
+// #![cfg_attr(target_family="wasm", no_std)]
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -6,33 +6,47 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-use core::mem::size_of;
+use core::{mem::size_of, slice, mem, ffi::c_void};
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+
 pub mod parser;
 pub mod utils;
 pub mod types;
 
 
 #[cfg(feature = "console")]
+#[macro_export]
 macro_rules! log {
-    // ( $( $t:tt )* ) => {
-    //     web_sys::console::log_1(&format!( $( $t )* ).into());
-    // }
-    ( $t:expr ) => {
-        web_sys::console::log_1(&JsValue::from_str($t));
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
     }
+    // ( $t:expr ) => {
+    //     web_sys::console::log_1(&JsValue::from_str($t));
+    // }
 }
 
-#[wasm_bindgen]
+#[cfg(not(any(feature = "console", target_family = "wasm")))]
+use log::debug as log;
+
+#[cfg(all(not(feature = "console"), target_family = "wasm"))]
+#[macro_export]
+macro_rules! log {
+    ($($tt:tt)*) => {
+
+    };
+}
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub fn init_console() {
-    #[cfg(feature = "console_error_panic_hook")]
+    #[cfg(all(target_family="wasm", feature = "console_error_panic_hook"))]
     console_error_panic_hook::set_once();
 }
 
 macro_rules! primitive_function_impl {
     ($name: ident, $dst_ty: ty, $src_ty: ty) => {
         paste::paste!{
-            #[wasm_bindgen]
+            #[cfg_attr(target_family = "wasm", wasm_bindgen)]
             pub fn [<$name _ $dst_ty>](dst: &mut [$dst_ty], src: $src_ty, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
                 $name(dst, src, byte_offset, byte_stride, begin, end)
             }
@@ -83,3 +97,38 @@ primitive_function_impl!(fill_to_interleaved_array, i16, i16);
 primitive_function_impl!(fill_to_interleaved_array, i32, i32);
 primitive_function_impl!(fill_to_interleaved_array, f32, f32);
 primitive_function_impl!(fill_to_interleaved_array, f64, f64);
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+pub struct Schema{
+    _data: Vec<u8>,
+    schema: *mut c_void,
+}
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+pub struct ChildVec(usize, usize);
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+impl Schema {
+    pub fn parse(data: Vec<u8>) -> Schema {
+        let schema = types::Schema::parse(&data).expect("Error parsing schema");
+        Schema {
+            schema: Box::into_raw(Box::new(schema)) as *mut c_void,
+            _data: data,
+        }
+    }
+
+    pub fn children(&self, separate_positions_buffer: bool) -> ChildVec {
+        // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+        let schema = unsafe{ &*(self.schema as *mut types::Schema) };
+        let children = schema.children(separate_positions_buffer, |_| true).collect::<Vec<_>>();
+        ChildVec(children.as_ptr() as usize, children.len())
+    }
+}
+
+// TODO: Check this is valid in wasm-bindgen
+impl Drop for Schema {
+    fn drop(&mut self) {
+        // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+        mem::drop(unsafe{ Box::from_raw(self.schema as *mut types::Schema) })
+    }
+}

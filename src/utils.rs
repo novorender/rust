@@ -2,6 +2,8 @@ use core::{ptr::NonNull, marker::PhantomData, slice, mem::size_of};
 
 use half::f16;
 
+use crate::log;
+
 #[derive(Clone, Copy)]
 pub struct ThinSlice<'a, T> {
     start: NonNull<T>,
@@ -34,30 +36,20 @@ impl<'a, T> ThinSlice<'a, T> {
         NonNull::slice_from_raw_parts(self.start, len as usize).as_ref()
     }
 
-    // pub unsafe fn range(self, range: Range<u32>, i: usize) -> &'a [T] {
-    //     let start = *range.start.get(i) as usize;
-    //     let count = *range.count.get(i) as usize;
-
-    //     #[cfg(debug_assertions)]
-    //     debug_assert!(self.len > start + count);
-
-    //     slice::from_raw_parts(self.start.as_ptr().add(start), count).as_ref()
-    // }
-
-    pub unsafe fn slice_range(self, range: std::ops::Range<u32>) -> &'a [T] {
+    pub unsafe fn slice_range(self, range: RangeInstance<u32>) -> &'a [T] {
         #[cfg(debug_assertions)]
-        debug_assert!(self.len > range.end as usize);
+        debug_assert!(self.len >= (range.start + range.count) as usize, "len: {} range: {:?}", self.len, range);
 
-        slice::from_raw_parts(self.start.as_ptr().add(range.start as usize), range.len() as usize).as_ref()
+        slice::from_raw_parts(self.start.as_ptr().add(range.start as usize), range.count as usize).as_ref()
     }
 
     pub unsafe fn range(self, range: RangeInstance<u32>) -> ThinSlice<'a, T>
     where T: 'a
     {
         #[cfg(debug_assertions)]
-        debug_assert!(self.len > (range.start + range.count) as usize);
+        debug_assert!(self.len >= (range.start + range.count) as usize);
 
-        self.slice_range(range.into()).into()
+        self.slice_range(range).into()
     }
 
     pub unsafe fn get(self, index: usize) -> &'a T {
@@ -65,6 +57,39 @@ impl<'a, T> ThinSlice<'a, T> {
         debug_assert!(index < self.len);
 
         &*self.start.as_ptr().add(index)
+    }
+
+    pub fn iter(self) -> ThinSliceIter<'a, T> {
+        ThinSliceIter {
+            start: self.start,
+            #[cfg(debug_assertions)]
+            len: self.len,
+            marker: PhantomData
+        }
+    }
+}
+
+pub struct ThinSliceIter<'a, T> {
+    start: NonNull<T>,
+    #[cfg(debug_assertions)]
+    len: usize,
+    marker: PhantomData<&'a ()>,
+}
+
+impl<'a, T: 'a> ThinSliceIterator for ThinSliceIter<'a, T> {
+    type Item = &'a T;
+
+    unsafe fn next(&mut self) -> Self::Item {
+        unsafe{
+            #[cfg(debug_assertions)]
+            {
+                debug_assert_ne!(self.len, 0);
+                self.len -= 1;
+            }
+            let ret = self.start.as_ref();
+            self.start = NonNull::new_unchecked(self.start.as_ptr().add(1));
+            ret
+        }
     }
 }
 
@@ -94,13 +119,19 @@ impl<'a, T> From<&'a [T;0]> for ThinSlice<'a, T> {
     }
 }
 
+pub trait ThinSliceIterator {
+    type Item;
+
+    unsafe fn next(&mut self) -> Self::Item;
+}
+
 #[derive(Clone, Copy)]
 pub struct Range<'a, T> {
     pub start: ThinSlice<'a, T>,
     pub count: ThinSlice<'a, T>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct RangeInstance<T> {
     pub start: T,
     pub count: T,
@@ -117,6 +148,49 @@ impl<T: std::ops::Add<Output = T> + Copy> Into<std::ops::Range<T>> for RangeInst
         self.start .. self.start + self.count
     }
 }
+pub struct RangeIter<'a, T> {
+    pub(crate) start: ThinSliceIter<'a, T>,
+    pub(crate) count: ThinSliceIter<'a, T>,
+}
+
+impl<'a, T: Copy + 'a> ThinSliceIterator for RangeIter<'a, T> {
+    type Item = RangeInstance<T>;
+
+    unsafe fn next(&mut self) -> RangeInstance<T> {
+        RangeInstance {
+            start: unsafe{ *self.start.next() },
+            count: unsafe{ *self.count.next() },
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! impl_range_iter {
+    ($name: ident, $ty: ty) => {
+        paste::paste!{
+            pub struct [<$name Instance>] (pub $crate::utils::RangeInstance<$ty>);
+
+            pub struct [<$name Iter>]<'a> ($crate::utils::RangeIter<'a, $ty>);
+
+            impl<'a> $name<'a> {
+                pub fn iter(&self) -> [<$name Iter>]<'a> {
+                    [<$name Iter>] ($crate::utils::RangeIter {
+                        start: self.0.start.iter(),
+                        count: self.0.count.iter(),
+                    })
+                }
+            }
+
+            impl<'a> $crate::utils::ThinSliceIterator for [<$name Iter>]<'a> {
+                type Item = [<$name Instance>];
+
+                unsafe fn next(&mut self) -> [<$name Instance>] {
+                    [<$name Instance>](unsafe{ self.0.next() })
+                }
+            }
+        }
+    };
+}
 
 // Types SoA to AoS
 use crate::types::*;
@@ -129,8 +203,30 @@ pub struct Float3Instance {
 }
 
 impl<'a> Float3<'a> {
-    unsafe fn get(&self, index: usize) -> Float3Instance {
+    pub unsafe fn get(&self, index: usize) -> Float3Instance {
         Float3Instance { x: *self.x.get(index), y: *self.y.get(index), z: *self.z.get(index) }
+    }
+
+    pub fn iter(&self) -> Float3Iter {
+        Float3Iter { x: self.x.iter(), y: self.y.iter(), z: self.z.iter() }
+    }
+}
+
+pub struct Float3Iter<'a> {
+    x: ThinSliceIter<'a, f32>,
+    y: ThinSliceIter<'a, f32>,
+    z: ThinSliceIter<'a, f32>,
+}
+
+impl<'a> ThinSliceIterator for Float3Iter<'a> {
+    type Item = Float3Instance;
+
+    unsafe fn next(&mut self) -> Self::Item {
+        Float3Instance {
+            x: unsafe{ *self.x.next() },
+            y: unsafe{ *self.y.next() },
+            z: unsafe{ *self.z.next() },
+        }
     }
 }
 
@@ -164,8 +260,30 @@ pub struct Double3Instance {
 }
 
 impl<'a> Double3<'a> {
-    unsafe fn get(&self, index: usize) -> Double3Instance {
+    pub unsafe fn get(&self, index: usize) -> Double3Instance {
         Double3Instance { x: *self.x.get(index), y: *self.y.get(index), z: *self.z.get(index) }
+    }
+
+    pub fn iter(&self) -> Double3Iter {
+        Double3Iter { x: self.x.iter(), y: self.y.iter(), z: self.z.iter() }
+    }
+}
+
+pub struct Double3Iter<'a> {
+    x: ThinSliceIter<'a, f64>,
+    y: ThinSliceIter<'a, f64>,
+    z: ThinSliceIter<'a, f64>,
+}
+
+impl<'a> ThinSliceIterator for Double3Iter<'a> {
+    type Item = Double3Instance;
+
+    unsafe fn next(&mut self) -> Self::Item {
+        Double3Instance {
+            x: unsafe{ *self.x.next() },
+            y: unsafe{ *self.y.next() },
+            z: unsafe{ *self.z.next() },
+        }
     }
 }
 
@@ -175,18 +293,18 @@ pub struct AABBInstance {
 }
 
 impl<'a> AABB<'a> {
-    unsafe fn get(&self, index: usize) -> AABBInstance {
+    pub unsafe fn get(&self, index: usize) -> AABBInstance {
         AABBInstance { min: self.min.get(index), max: self.max.get(index) }
     }
 }
 
-struct BoundingSphereInstance {
+pub struct BoundingSphereInstance {
     origo: Float3Instance,
     radius: f32,
 }
 
 impl<'a> BoundingSphere<'a> {
-    unsafe fn get(&self, index: usize) -> BoundingSphereInstance {
+    pub unsafe fn get(&self, index: usize) -> BoundingSphereInstance {
         BoundingSphereInstance { origo: self.origo.get(index), radius: *self.radius.get(index) }
     }
 }
@@ -197,37 +315,73 @@ pub struct BoundsInstance {
 }
 
 impl<'a> Bounds<'a> {
-    unsafe fn get(&self, index: usize) -> BoundsInstance {
+    pub unsafe fn get(&self, index: usize) -> BoundsInstance {
         BoundsInstance { _box: self._box.get(index), sphere: self.sphere.get(index) }
+    }
+
+    pub fn iter(&self) -> BoundsIter {
+        BoundsIter {
+            box_min: self._box.min.iter(),
+            box_max: self._box.max.iter(),
+            origo_iter: self.sphere.origo.iter(),
+            radius_iter: self.sphere.radius.iter()
+        }
+    }
+}
+
+pub struct BoundsIter<'a> {
+    box_min: Float3Iter<'a>,
+    box_max: Float3Iter<'a>,
+    origo_iter: Float3Iter<'a>,
+    radius_iter: ThinSliceIter<'a, f32>,
+}
+
+impl<'a> ThinSliceIterator for BoundsIter<'a> {
+    type Item = BoundsInstance;
+
+    unsafe fn next(&mut self) -> Self::Item {
+        BoundsInstance {
+            _box: AABBInstance {
+                min: unsafe{ self.box_min.next() },
+                max: unsafe{ self.box_max.next() },
+            },
+            sphere: BoundingSphereInstance {
+                origo: unsafe{ self.origo_iter.next() },
+                radius: unsafe{ *self.radius_iter.next() },
+            },
+        }
     }
 }
 
 pub struct SubMeshProjectionIter<'a> {
     len: u32,
-    object_id: slice::Iter<'a, u32>,
-    primitive_type: slice::Iter<'a, PrimitiveType>,
-    attributes: slice::Iter<'a, OptionalVertexAttribute>,
-    num_deviations: slice::Iter<'a, u8>,
-    num_indices: slice::Iter<'a, u32>,
-    num_vertices: slice::Iter<'a, u32>,
-    num_texture_bytes: slice::Iter<'a, u32>,
+    object_id: ThinSliceIter<'a, u32>,
+    primitive_type: ThinSliceIter<'a, PrimitiveType>,
+    attributes: ThinSliceIter<'a, OptionalVertexAttribute>,
+    num_deviations: ThinSliceIter<'a, u8>,
+    num_indices: ThinSliceIter<'a, u32>,
+    num_vertices: ThinSliceIter<'a, u32>,
+    num_texture_bytes: ThinSliceIter<'a, u32>,
 }
 
 impl<'a> Iterator for SubMeshProjectionIter<'a> {
     type Item = (u32, PrimitiveType, OptionalVertexAttribute, u8, u32, u32, u32);
+
+    // SAFETY: We check len before calling next on the thin slice iterators which all have the
+    // same size
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
             return None;
         }
         self.len -= 1;
         Some(unsafe{(
-            *self.object_id.next().unwrap_unchecked(),
-            *self.primitive_type.next().unwrap_unchecked(),
-            *self.attributes.next().unwrap_unchecked(),
-            *self.num_deviations.next().unwrap_unchecked(),
-            *self.num_indices.next().unwrap_unchecked(),
-            *self.num_vertices.next().unwrap_unchecked(),
-            *self.num_texture_bytes.next().unwrap_unchecked(),
+            *self.object_id.next(),
+            *self.primitive_type.next(),
+            *self.attributes.next(),
+            *self.num_deviations.next(),
+            *self.num_indices.next(),
+            *self.num_vertices.next(),
+            *self.num_texture_bytes.next(),
         )})
     }
 }
@@ -250,25 +404,40 @@ impl<'a> SubMeshProjection<'a> {
     pub fn iter(&self) -> SubMeshProjectionIter<'a> {
         SubMeshProjectionIter {
             len: self.len,
-            object_id: unsafe{ self.object_id.as_slice(self.len).iter() },
-            primitive_type: unsafe{ self.primitive_type.as_slice(self.len).iter() },
-            attributes: unsafe{ self.attributes.as_slice(self.len).iter() },
-            num_deviations: unsafe{ self.num_deviations.as_slice(self.len).iter() },
-            num_indices: unsafe{ self.num_indices.as_slice(self.len).iter() },
-            num_vertices: unsafe{ self.num_vertices.as_slice(self.len).iter() },
-            num_texture_bytes: unsafe{ self.num_texture_bytes.as_slice(self.len).iter() }
+            object_id: self.object_id.iter(),
+            primitive_type: self.primitive_type.iter(),
+            attributes: self.attributes.iter(),
+            num_deviations: self.num_deviations.iter(),
+            num_indices: self.num_indices.iter(),
+            num_vertices: self.num_vertices.iter(),
+            num_texture_bytes: self.num_texture_bytes.iter(),
         }
     }
 }
 
-
-// TODO: Try with iterators per field instead of copies
-struct ChildInfoIter<'a> {
-    schema: &'a Schema<'a>,
-    next: usize,
+impl<'a> ChildInfo<'a> {
+    pub fn iter(&'a self, schema: &'a Schema<'a>) -> ChildInfoIter<'a> {
+        log!("{:?}", unsafe{
+            self.hash.0.start.as_slice(self.len).iter().zip(self.hash.0.count.as_slice(self.len)).collect::<Vec<_>>()
+        });
+        ChildInfoIter {
+            schema,
+            len: self.len,
+            hash: self.hash.iter(),
+            child_index: self.child_index.iter(),
+            child_mask: self.child_mask.iter(),
+            tolerance: self.tolerance.iter(),
+            total_byte_size: self.total_byte_size.iter(),
+            offset: self.offset.iter(),
+            scale: self.scale.iter(),
+            bounds: self.bounds.iter(),
+            sub_meshes: self.sub_meshes.iter(),
+            descendant_object_ids: self.descendant_object_ids.iter(),
+        }
+    }
 }
 
-struct ChildInfoInstance<'a> {
+pub struct ChildInfoInstance<'a> {
     pub hash: &'a [HashBytes],
     pub child_index: u8,
     pub child_mask: u32,
@@ -281,30 +450,57 @@ struct ChildInfoInstance<'a> {
     pub descendant_object_ids: &'a [DescendantObjectIds]
 }
 
+pub struct ChildInfoIter<'a> {
+    schema: &'a Schema<'a>,
+    len: u32,
+    hash: HashRangeIter<'a>,
+    child_index: ThinSliceIter<'a, u8>,
+    child_mask: ThinSliceIter<'a, u32>,
+    tolerance: ThinSliceIter<'a, i8>,
+    total_byte_size: ThinSliceIter<'a, u32>,
+    offset: Double3Iter<'a>,
+    scale: ThinSliceIter<'a, f32>,
+    bounds: BoundsIter<'a>,
+    sub_meshes: SubMeshProjectionRangeIter<'a>,
+    descendant_object_ids: DescendantObjectIdsRangeIter<'a>,
+}
+
 impl<'a> Iterator for ChildInfoIter<'a> {
     type Item = ChildInfoInstance<'a>;
+
+    // SAFETY: We check len before calling next on the thin slice iterators which all have the
+    // same size
     fn next(&mut self) -> Option<Self::Item> {
-        let index = self.next;
-        let child_info = &self.schema.child_info;
-        if index == child_info.len as usize {
-            return None
+        if self.len == 0 {
+            return None;
         }
-        self.next += 1;
-        let hash = unsafe{ self.schema.hash_bytes.slice_range(child_info.hash.0.get(index).into()) };
-        let sub_meshes = unsafe { self.schema.sub_mesh_projection.range(child_info.sub_meshes.0.get(index).into()) };
-        let descendant_object_ids = unsafe { self.schema.descendant_object_ids.slice_range(child_info.sub_meshes.0.get(index).into()) };
+        self.len -= 1;
+
+        let hash_range = unsafe{ self.hash.next() };
+        log!("hash_range.0.start + hash_range.0.count: {}, self.schema.hash_bytes.len: {}", hash_range.0.start + hash_range.0.count, self.schema.hash_bytes.len);
+        let hash = unsafe{ self.schema.hash_bytes.slice_range(hash_range.0) };
+
+        let sub_meshes_range = unsafe{ self.sub_meshes.next() };
+        let sub_meshes = unsafe{ self.schema.sub_mesh_projection.range(sub_meshes_range.0) };
+
+        let descendant_obj_ids_range = unsafe{ self.descendant_object_ids.next() };
+        log!("descendant_obj_ids_range.0.start + descendant_obj_ids_range.0.count: {}, self.schema.descendant_object_ids.len: {}", descendant_obj_ids_range.0.start + descendant_obj_ids_range.0.count, self.schema.descendant_object_ids.len);
+        let descendant_object_ids = unsafe{ self.schema.descendant_object_ids.slice_range(descendant_obj_ids_range.0) };
+
         Some(ChildInfoInstance {
             hash,
-            child_index: unsafe{ *child_info.child_index.get(index) },
-            child_mask: unsafe{ *child_info.child_mask.get(index) },
-            tolerance: unsafe{ *child_info.tolerance.get(index) },
-            total_byte_size: unsafe{ *child_info.total_byte_size.get(index) },
-            offset: unsafe{ child_info.offset.get(index) },
-            scale: unsafe{ *child_info.scale.get(index) },
-            bounds: unsafe{ child_info.bounds.get(index) },
+            child_index: unsafe{ *self.child_index.next() },
+            child_mask: unsafe{ *self.child_mask.next() },
+            tolerance: unsafe{ *self.tolerance.next() },
+            total_byte_size: unsafe{ *self.total_byte_size.next() },
+            offset: unsafe{ self.offset.next() },
+            scale: unsafe{ *self.scale.next() },
+            bounds: unsafe{ self.bounds.next() },
             sub_meshes,
             descendant_object_ids,
         })
+
+
     }
 }
 
@@ -383,9 +579,11 @@ impl From<OptionalVertexAttribute> for Attribute {
 fn compute_vertex_offsets_(attributes: impl IntoIterator<Item = Attribute>) -> Offsets {
     let mut offset = 0;
     let mut offsets: Offsets = Offsets::default();
+
     fn padding(alignment: u32, offset: u32) -> u32 {
         alignment - 1 - (offset + alignment - 1) % alignment
     }
+
     let mut max_align = 1;
     for attribute in attributes.into_iter() {
         let count = attribute_components(attribute);
@@ -528,10 +726,7 @@ pub struct Child<'a> {
 
 impl<'a> Schema<'a> {
     pub fn children(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool + Copy) -> impl Iterator<Item = Child> {
-        ChildInfoIter {
-            schema: self,
-            next: 0,
-        }.map(move |child_info| {
+        self.child_info.iter(self).map(move |child_info| {
             let id = to_hex(child_info.hash);
             let f32_offset = child_info.offset.into();
             let bounds = BoundsInstance {

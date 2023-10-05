@@ -2,9 +2,13 @@ use bitflags::bitflags;
 use half::f16;
 
 use crate::utils::{ThinSlice, Range};
+use crate::impl_range_iter;
+#[cfg(feature = "checked_types")]
+use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 
 /// Type of GL render primitive.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 pub enum PrimitiveType {
     Points = 0,
@@ -18,6 +22,7 @@ pub enum PrimitiveType {
 
 /// Type of material.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 pub enum MaterialType {
     Opaque = 0,
@@ -26,10 +31,15 @@ pub enum MaterialType {
     Elevation = 3,
 }
 
+
+/// Bitwise flags for which vertex attributes will be used in geometry.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature= "checked_types", derive(Pod, Zeroable))]
+#[cfg_attr(feature= "checked_types", repr(transparent))]
+pub struct OptionalVertexAttribute(u8);
+
 bitflags! {
-    /// Bitwise flags for which vertex attributes will be used in geometry.
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub struct OptionalVertexAttribute: u8 {
+    impl OptionalVertexAttribute: u8 {
         const NORMAL = 1;
         const COLOR = 2;
         const TEX_COORD = 4;
@@ -39,6 +49,7 @@ bitflags! {
 
 /// Texture semantic/purpose.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 pub enum TextureSemantic {
     BaseColor = 0,
@@ -278,30 +289,44 @@ pub type DescendantObjectIds = u32;
 #[derive(Clone)]
 pub struct PixelRange<'a>(pub Range<'a, u32>);
 
+impl_range_iter!(PixelRange, u32);
+
 /// Range into submesh projection.
 #[derive(Clone, Copy)]
 pub struct SubMeshProjectionRange<'a>(pub Range<'a, u32>);
+
+impl_range_iter!(SubMeshProjectionRange, u32);
 
 /// Hash bytes
 #[derive(Clone, Copy)]
 pub struct HashRange<'a>(pub Range<'a, u32>);
 
+impl_range_iter!(HashRange, u32);
+
 /// Range into descendantObjectIdsRange.
 #[derive(Clone, Copy)]
 pub struct DescendantObjectIdsRange<'a>(pub Range<'a, u32>);
+
+impl_range_iter!(DescendantObjectIdsRange, u32);
 
 /// Mesh vertices
 #[derive(Clone, Copy)]
 
 pub struct VertexRange<'a>(pub Range<'a, u32>);
 
+impl_range_iter!(VertexRange, u32);
+
 /// Mesh vertices indices
 #[derive(Clone, Copy)]
 pub struct VertexIndexRange<'a>(pub Range<'a, u32>);
 
+impl_range_iter!(VertexIndexRange, u32);
+
 /// Mesh textures
 #[derive(Clone, Copy)]
 pub struct TextureInfoRange<'a>(pub Range<'a, u8>);
+
+impl_range_iter!(TextureInfoRange, u8);
 
 pub struct Schema<'a> {
     pub version: &'static str,

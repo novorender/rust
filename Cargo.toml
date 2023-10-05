@@ -9,15 +9,21 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = { version = "0.2.87", features = [] }
-console_error_panic_hook = { version = "0.1.7", optional = true }
-wee_alloc = { version = "0.4.5", optional = true }
-web-sys = { version = "0.3.64", features = ["console"], optional = true }
 paste = "1.0.14"
 bitflags = { version = "2.4.0", features = ["serde", "bytemuck"] }
 half = { version = "2.3.1", features = ["bytemuck", "serde"] }
 anyhow = "1.0.75"
 bytemuck = { version = "1.14.0", features = [ "derive" ] }
+wasm-bindgen = { version = "0.2.87", features = [] }
+wee_alloc = { version = "0.4.5", optional = true }
+web-sys = { version = "0.3.64", features = ["console"], optional = true }
+js-sys = "0.3.64"
+
+[target.'cfg(not(target_family="wasm"))'.dependencies]
+log = "0.4.20"
+
+[target.'cfg(target_family="wasm")'.dependencies]
+console_error_panic_hook = { version = "0.1.7", optional = true }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
@@ -27,5 +33,6 @@ lto =  true
 
 [features]
 console = ["web-sys", "console_error_panic_hook"]
+checked_types = []
 unstable = []
-# default = ["console_error_panic_hook"]
+# default = ["console", "checked_types"]

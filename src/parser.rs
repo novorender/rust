@@ -1,12 +1,11 @@
-use core::mem::size_of;
+use core::mem::{size_of, align_of};
 
 use anyhow::Result;
-use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 
 use crate::utils::{ThinSlice, Range};
 use crate::types::*;
 
-#[derive(Pod, Zeroable, Copy, Clone, Debug)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
 #[repr(C)]
 struct Sizes {
     child_info: u32,
@@ -23,18 +22,6 @@ struct Sizes {
 
 const NUM_OPTIONALS: usize = 10;
 
-#[derive(Clone, Copy)]
-#[repr(transparent)]
-struct OptionalsData([bool; NUM_OPTIONALS]);
-
-unsafe impl CheckedBitPattern for OptionalsData {
-    type Bits = [u8; NUM_OPTIONALS];
-
-    fn is_valid_bit_pattern(bits: &Self::Bits) -> bool {
-        bits.iter().all(|b| *b == 0 || *b == 1)
-    }
-}
-
 struct Optionals<'a> {
     flags: &'a [u8; NUM_OPTIONALS],
     next: usize
@@ -50,11 +37,31 @@ impl<'a> Optionals<'a> {
 
 #[inline(always)]
 fn align<T>(next: usize) -> usize {
-    // let rem = next % align_of::<T>();
-    // if rem != 0 { align_of::<T>() - rem } else { 0 }
+    let rem = next % align_of::<T>();
+    if rem != 0 { align_of::<T>() - rem } else { 0 }
 
-    (size_of::<T>() - 1) - ((next + size_of::<T>() - 1) % size_of::<T>())
+    // (size_of::<T>() - 1) - ((next + size_of::<T>() - 1) % size_of::<T>())
 }
+
+#[cfg(not(feature = "checked_types"))]
+trait Pod {
+
+}
+
+#[cfg(not(feature = "checked_types"))]
+impl<T> Pod for T {}
+
+#[cfg(not(feature = "checked_types"))]
+trait CheckedBitPattern {
+
+}
+
+#[cfg(not(feature = "checked_types"))]
+impl<T> CheckedBitPattern for T {}
+
+
+#[cfg(feature = "checked_types")]
+use bytemuck::{Pod, CheckedBitPattern};
 
 struct Reader<'a> {
     data: &'a [u8],
@@ -62,19 +69,19 @@ struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-    fn read<T: Pod>(&mut self) -> &'a T {
+    fn read<T: bytemuck::Pod>(&mut self) -> &'a T {
         let ret = bytemuck::from_bytes(&self.data[self.next..self.next + size_of::<T>()]);
         self.next += size_of::<T>();
         ret
     }
 
-    fn read_checked<T: CheckedBitPattern>(&mut self) -> &'a T {
+    fn read_checked<T: bytemuck::CheckedBitPattern>(&mut self) -> &'a T {
         let ret = bytemuck::checked::from_bytes(&self.data[self.next..self.next + size_of::<T>()]);
         self.next += size_of::<T>();
         ret
     }
 
-    fn read_slice<T>(&mut self, len: u32) -> ThinSlice<'a, T>
+    fn read_slice<T: Pod>(&mut self, len: u32) -> ThinSlice<'a, T>
     where T: 'a
     {
         if len > 0 {
@@ -82,8 +89,13 @@ impl<'a> Reader<'a> {
 
             let size = size_of::<T>() * len as usize;
             let next_next = self.next + size;
+
+            #[cfg(not(feature = "checked_types"))]
             let ret = ThinSlice::from_data_and_offset(&self.data, self.next, len);
-            // let ret = ThinSlice::from(bytemuck::cast_slice(&self.data[self.next .. next_next]));
+
+            #[cfg(feature = "checked_types")]
+            let ret = ThinSlice::from(bytemuck::cast_slice(&self.data[self.next .. next_next]));
+
             self.next = next_next;
             ret
         }else{
@@ -92,7 +104,7 @@ impl<'a> Reader<'a> {
 
     }
 
-    fn read_checked_slice<T>(&mut self, len: u32) -> ThinSlice<'a, T>
+    fn read_checked_slice<T: CheckedBitPattern>(&mut self, len: u32) -> ThinSlice<'a, T>
     where T: 'a
     {
         if len > 0 {
@@ -100,8 +112,13 @@ impl<'a> Reader<'a> {
 
             let size = size_of::<T>() * len as usize;
             let next_next = self.next + size;
+
+            #[cfg(not(feature = "checked_types"))]
             let ret = ThinSlice::from_data_and_offset(&self.data, self.next, len);
-            // let ret = ThinSlice::from(bytemuck::checked::cast_slice(&self.data[self.next .. next_next]));
+
+            #[cfg(feature = "checked_types")]
+            let ret = ThinSlice::from(bytemuck::checked::cast_slice(&self.data[self.next .. next_next]));
+
             self.next = next_next;
             ret
         }else{
@@ -109,7 +126,9 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn range<T: Pod>(&mut self, len: u32) -> Range<'a, T> {
+    fn range<T: Pod>(&mut self, len: u32) -> Range<'a, T>
+    where T: 'a
+    {
         Range{ start: self.read_slice(len), count: self.read_slice(len) }
     }
 
@@ -275,7 +294,7 @@ impl<'a> Reader<'a> {
 }
 
 impl<'a> Schema<'a> {
-    pub fn read(data: &'a [u8]) -> Result<Schema<'a>> {
+    pub fn parse(data: &'a [u8]) -> Result<Schema<'a>> {
         let mut reader = Reader { data, next: 0 };
         let sizes: &Sizes = reader.read();
         let mut optionals = Optionals{ flags: reader.read_checked(), next: 0 };
@@ -291,6 +310,8 @@ impl<'a> Schema<'a> {
         let vertex_index = optionals.next().then(|| reader.read_slice(sizes.vertex_index));
         let texture_pixels = reader.read_slice(sizes.texture_pixels);
 
+        debug_assert_eq!(reader.next, reader.data.len());
+
         Ok(Schema {
             version: "2.1",
             child_info,
@@ -305,30 +326,4 @@ impl<'a> Schema<'a> {
             texture_pixels,
         })
     }
-}
-
-#[test]
-fn test_read() {
-    use std::io::Read;
-
-    let then = std::time::Instant::now();
-    let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).unwrap();
-
-    let schema = Schema::read(&data).unwrap();
-    dbg!(then.elapsed());
-
-    for p in schema.sub_mesh_projection.primitive_type() {
-        assert!((*p as u8) < 7);
-    }
-    for p in schema.sub_mesh_projection.attributes() {
-        let mut p = *p;
-        p.remove(OptionalVertexAttribute::NORMAL);
-        p.remove(OptionalVertexAttribute::COLOR);
-        p.remove(OptionalVertexAttribute::TEX_COORD);
-        p.remove(OptionalVertexAttribute::PROJECTED_POS);
-        assert!(p.is_empty());
-    }
-    // assert_eq!(file.read_to_end(&mut vec![0;1024]).unwrap(),  0);
 }
