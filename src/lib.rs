@@ -20,7 +20,7 @@ pub mod thin_slice;
 pub mod range;
 
 
-#[cfg(feature = "console")]
+#[cfg(all(feature = "console", target_family = "wasm"))]
 #[macro_export]
 macro_rules! log {
     ( $( $t:tt )* ) => {
@@ -31,7 +31,7 @@ macro_rules! log {
     // }
 }
 
-#[cfg(not(any(feature = "console", target_family = "wasm")))]
+#[cfg(all(feature = "console", not(target_family = "wasm")))]
 use log::debug as log;
 
 #[cfg(all(not(feature = "console"), target_family = "wasm"))]

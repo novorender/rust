@@ -4,7 +4,6 @@ use core::mem::size_of;
 
 use half::f16;
 
-use crate::log;
 use crate::types_2_0::*;
 use crate::thin_slice::{ThinSliceIter, ThinSliceIterator};
 use crate::range::RangeInstance;
@@ -231,9 +230,6 @@ impl<'a> SubMeshProjection<'a> {
 
 impl<'a> ChildInfo<'a> {
     pub fn iter(&'a self, schema: &'a Schema<'a>) -> ChildInfoIter<'a> {
-        log!("{:?}", unsafe{
-            self.hash.0.start.as_slice(self.len).iter().zip(self.hash.0.count.as_slice(self.len)).collect::<Vec<_>>()
-        });
         ChildInfoIter {
             schema,
             len: self.len,
