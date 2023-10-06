@@ -3,3 +3,4 @@ pkg
 .cargo
 Cargo.lock
 test-app
+example
