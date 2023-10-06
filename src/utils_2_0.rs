@@ -197,7 +197,7 @@ pub struct SubMeshProjectionInstance {
 }
 
 pub struct SubMeshProjectionIter<'a> {
-    len: u32,
+    len: usize,
     object_id: ThinSliceIter<'a, u32>,
     primitive_type: ThinSliceIter<'a, PrimitiveType>,
     attributes: ThinSliceIter<'a, OptionalVertexAttribute>,
@@ -228,6 +228,17 @@ impl<'a> Iterator for SubMeshProjectionIter<'a> {
             num_texture_bytes: *self.num_texture_bytes.next(),
         }})
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
+
+impl<'a> ExactSizeIterator for SubMeshProjectionIter<'a> {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        self.len
+    }
 }
 
 
@@ -247,7 +258,7 @@ impl<'a> SubMeshProjection<'a> {
 
     pub fn iter(&self) -> SubMeshProjectionIter<'a> {
         SubMeshProjectionIter {
-            len: self.len,
+            len: self.len as usize,
             object_id: self.object_id.iter(),
             primitive_type: self.primitive_type.iter(),
             attributes: self.attributes.iter(),
@@ -263,7 +274,7 @@ impl<'a> ChildInfo<'a> {
     pub fn iter(&'a self, schema: &'a Schema<'a>) -> ChildInfoIter<'a> {
         ChildInfoIter {
             schema,
-            len: self.len,
+            len: self.len as usize,
             hash: self.hash.iter(),
             child_index: self.child_index.iter(),
             child_mask: self.child_mask.iter(),
@@ -291,7 +302,7 @@ pub struct ChildInfoInstance<'a> {
 
 pub struct ChildInfoIter<'a> {
     schema: &'a Schema<'a>,
-    len: u32,
+    len: usize,
     hash: HashRangeIter<'a>,
     child_index: ThinSliceIter<'a, u8>,
     child_mask: ThinSliceIter<'a, u32>,
@@ -332,8 +343,16 @@ impl<'a> Iterator for ChildInfoIter<'a> {
             bounds: unsafe{ self.bounds.next() },
             sub_meshes,
         })
+    }
 
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
 
+impl<'a> ExactSizeIterator for ChildInfoIter<'a> {
+    fn len(&self) -> usize {
+        self.len
     }
 }
 
@@ -556,7 +575,7 @@ pub struct Child {
 }
 
 impl<'a> Schema<'a> {
-    pub fn children(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl Iterator<Item = Child> + '_ {
+    pub fn children(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child> + '_ {
         self.child_info.iter(self).map(move |child_info| {
             let id = to_hex(child_info.hash);
             let f32_offset = child_info.offset.into();
