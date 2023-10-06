@@ -1,20 +1,20 @@
 use crate::thin_slice::{ThinSlice, ThinSliceIter, ThinSliceIterator};
 
 #[derive(Clone, Copy)]
-pub struct Range<'a, T> {
+pub struct RangeSlice<'a, T> {
     pub start: ThinSlice<'a, T>,
     pub count: ThinSlice<'a, T>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct RangeInstance<T> {
+pub struct Range<T> {
     pub start: T,
     pub count: T,
 }
 
-impl<'a, T: Copy> Range<'a, T> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> RangeInstance<T> {
-        RangeInstance{
+impl<'a, T: Copy> RangeSlice<'a, T> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> Range<T> {
+        Range{
             start: *self.start.get_unchecked(index),
             count: *self.count.get_unchecked(index)
         }
@@ -25,7 +25,7 @@ impl<'a, T: Copy> Range<'a, T> {
     }
 }
 
-impl<T: std::ops::Add<Output = T> + Copy> Into<std::ops::Range<T>> for RangeInstance<T> {
+impl<T: std::ops::Add<Output = T> + Copy> Into<std::ops::Range<T>> for Range<T> {
     fn into(self) -> std::ops::Range<T> {
         self.start .. self.start + self.count
     }
@@ -36,41 +36,58 @@ pub struct RangeIter<'a, T> {
 }
 
 impl<'a, T: Copy + 'a> ThinSliceIterator for RangeIter<'a, T> {
-    type Item = RangeInstance<T>;
+    type Item = Range<T>;
 
     #[inline(always)]
-    unsafe fn next(&mut self) -> RangeInstance<T> {
-        RangeInstance {
+    unsafe fn next(&mut self) -> Range<T> {
+        Range {
             start: unsafe{ *self.start.next() },
             count: unsafe{ *self.count.next() },
         }
     }
 }
 
-#[macro_export]
-macro_rules! impl_range_iter {
-    ($name: ident, $ty: ty) => {
+#[macro_export(local_inner_macros)]
+macro_rules! impl_range {
+    (
+        $(#[$outer:meta])*
+        $name: ident: $ty: ty
+    ) => {
         paste::paste!{
-            pub struct [<$name Instance>] (pub $crate::range::RangeInstance<$ty>);
+            $(#[$outer])*
+            #[derive(Clone, Copy)]
+            pub struct [<$name Slice>]<'a> (pub $crate::range::RangeSlice<'a, $ty>);
+
+            $(#[$outer])*
+            pub struct $name (pub $crate::range::Range<$ty>);
 
             pub struct [<$name Iter>]<'a> ($crate::range::RangeIter<'a, $ty>);
 
-            impl<'a> $name<'a> {
+            impl<'a> [<$name Slice>]<'a> {
                 pub fn iter(&self) -> [<$name Iter>]<'a> {
                     [<$name Iter>] (self.0.iter())
                 }
 
-                pub unsafe fn get_unchecked(&self, index: usize) -> [<$name Instance>] {
-                    [<$name Instance>](self.0.get_unchecked(index))
+                pub unsafe fn get_unchecked(&self, index: usize) -> $name {
+                    $name(self.0.get_unchecked(index))
                 }
             }
 
             impl<'a> $crate::thin_slice::ThinSliceIterator for [<$name Iter>]<'a> {
-                type Item = [<$name Instance>];
+                type Item = $name;
 
                 #[inline(always)]
-                unsafe fn next(&mut self) -> [<$name Instance>] {
-                    [<$name Instance>](unsafe{ self.0.next() })
+                unsafe fn next(&mut self) -> $name {
+                    $name(unsafe{ self.0.next() })
+                }
+            }
+
+            impl core::ops::Deref for $name {
+                type Target = $crate::range::Range<$ty>;
+
+                #[inline(always)]
+                fn deref(&self) -> &Self::Target {
+                    &self.0
                 }
             }
         }

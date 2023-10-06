@@ -3,7 +3,7 @@ use core::mem::{size_of, align_of};
 use anyhow::Result;
 
 use crate::thin_slice::ThinSlice;
-use crate::range::Range;
+use crate::range::RangeSlice;
 use crate::types_2_0::*;
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
@@ -126,30 +126,30 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn range<T: Pod>(&mut self, len: u32) -> Range<'a, T>
+    fn range<T: Pod>(&mut self, len: u32) -> RangeSlice<'a, T>
     where T: 'a
     {
-        Range{ start: self.read_slice(len), count: self.read_slice(len) }
+        RangeSlice{ start: self.read_slice(len), count: self.read_slice(len) }
     }
 
-    fn double3(&mut self, len: u32) -> Double3<'a> {
-        Double3 {
+    fn double3(&mut self, len: u32) -> Double3Slice<'a> {
+        Double3Slice {
             x: self.read_slice(len),
             y: self.read_slice(len),
             z: self.read_slice(len),
         }
     }
 
-    fn float3(&mut self, len: u32) -> Float3<'a> {
-        Float3 {
+    fn float3(&mut self, len: u32) -> Float3Slice<'a> {
+        Float3Slice {
             x: self.read_slice(len),
             y: self.read_slice(len),
             z: self.read_slice(len),
         }
     }
 
-    fn float3x3(&mut self, len: u32) -> Float3x3<'a> {
-        Float3x3 {
+    fn float3x3(&mut self, len: u32) -> Float3x3Slice<'a> {
+        Float3x3Slice {
             e00: self.read_slice(len),
             e01: self.read_slice(len),
             e02: self.read_slice(len),
@@ -162,24 +162,24 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn int16_3(&mut self, len: u32) -> Int16_3<'a> {
-        Int16_3 {
+    fn int16_3(&mut self, len: u32) -> Int16_3Slice<'a> {
+        Int16_3Slice {
             x: self.read_slice(len),
             y: self.read_slice(len),
             z: self.read_slice(len),
         }
     }
 
-    fn int8_3(&mut self, len: u32) -> Int8_3<'a> {
-        Int8_3 {
+    fn int8_3(&mut self, len: u32) -> Int8_3Slice<'a> {
+        Int8_3Slice {
             x: self.read_slice(len),
             y: self.read_slice(len),
             z: self.read_slice(len),
         }
     }
 
-    fn rgba_u8(&mut self, len: u32) -> RgbaU8<'a> {
-        RgbaU8 {
+    fn rgba_u8(&mut self, len: u32) -> RgbaU8Slice<'a> {
+        RgbaU8Slice {
             red: self.read_slice(len),
             green: self.read_slice(len),
             blue: self.read_slice(len),
@@ -187,32 +187,32 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn half2(&mut self, len: u32) -> Half2<'a> {
-        Half2 {
+    fn half2(&mut self, len: u32) -> Half2Slice<'a> {
+        Half2Slice {
             x: self.read_slice(len),
             y: self.read_slice(len),
         }
     }
 
-    fn aabb(&mut self, len: u32) -> AABB<'a> {
-        AABB { min: self.float3(len), max: self.float3(len) }
+    fn aabb(&mut self, len: u32) -> AABBSlice<'a> {
+        AABBSlice { min: self.float3(len), max: self.float3(len) }
     }
 
-    fn bounding_sphere(&mut self, len: u32) -> BoundingSphere<'a> {
-        BoundingSphere { origo: self.float3(len), radius: self.read_slice(len) }
+    fn bounding_sphere(&mut self, len: u32) -> BoundingSphereSlice<'a> {
+        BoundingSphereSlice { origo: self.float3(len), radius: self.read_slice(len) }
     }
 
-    fn bounds(&mut self, len: u32) -> Bounds<'a> {
-        Bounds {
+    fn bounds(&mut self, len: u32) -> BoundsSlice<'a> {
+        BoundsSlice {
             _box: self.aabb(len),
             sphere: self.bounding_sphere(len),
         }
     }
 
-    fn child_info(&mut self, len: u32) -> ChildInfo<'a> {
-        ChildInfo {
+    fn child_info(&mut self, len: u32) -> ChildInfoSlice<'a> {
+        ChildInfoSlice {
             len,
-            hash: HashRange(self.range(len)),
+            hash: HashRangeSlice(self.range(len)),
             child_index: self.read_slice(len),
             child_mask: self.read_slice(len),
             tolerance: self.read_slice(len),
@@ -220,13 +220,13 @@ impl<'a> Reader<'a> {
             offset: self.double3(len),
             scale: self.read_slice(len),
             bounds: self.bounds(len),
-            sub_meshes: SubMeshProjectionRange(self.range(len)),
+            sub_meshes: SubMeshProjectionRangeSlice(self.range(len)),
 
         }
     }
 
-    fn sub_mesh_projection(&mut self, len: u32) -> SubMeshProjection<'a> {
-        SubMeshProjection {
+    fn sub_mesh_projection(&mut self, len: u32) -> SubMeshProjectionSlice<'a> {
+        SubMeshProjectionSlice {
             len,
             object_id: self.read_slice(len),
             primitive_type: self.read_checked_slice(len),
@@ -238,8 +238,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn sub_mesh(&mut self, len: u32) -> SubMesh<'a> {
-        SubMesh {
+    fn sub_mesh(&mut self, len: u32) -> SubMeshSlice<'a> {
+        SubMeshSlice {
             len,
             child_index: self.read_slice(len),
             object_id: self.read_slice(len),
@@ -248,25 +248,25 @@ impl<'a> Reader<'a> {
             material_type: self.read_checked_slice(len),
             attributes: self.read_slice(len),
             num_deviations: self.read_slice(len),
-            vertices: VertexRange(self.range(len)),
-            primitive_vertex_indices: VertexIndexRange(self.range(len)),
-            edge_vertex_indices: VertexIndexRange(self.range(len)),
-            corner_vertex_indices: VertexIndexRange(self.range(len)),
-            textures: TextureInfoRange(self.range(len)),
+            vertices: VertexRangeSlice(self.range(len)),
+            primitive_vertex_indices: VertexIndexRangeSlice(self.range(len)),
+            edge_vertex_indices: VertexIndexRangeSlice(self.range(len)),
+            corner_vertex_indices: VertexIndexRangeSlice(self.range(len)),
+            textures: TextureInfoRangeSlice(self.range(len)),
         }
     }
 
-    fn texture_info(&mut self, len: u32) -> TextureInfo<'a>  {
-        TextureInfo {
+    fn texture_info(&mut self, len: u32) -> TextureInfoSlice<'a>  {
+        TextureInfoSlice {
             len,
             semantic: self.read_checked_slice(len),
             transform: self.float3x3(len),
-            pixel_range: PixelRange(self.range(len)),
+            pixel_range: PixelRangeSlice(self.range(len)),
         }
     }
 
-    fn deviations(&mut self, len: u32, optionals: &mut Optionals) -> Deviations<'a> {
-        Deviations {
+    fn deviations(&mut self, len: u32, optionals: &mut Optionals) -> DeviationsSlice<'a> {
+        DeviationsSlice {
             len,
             a: optionals.next().then(|| self.read_slice(len)),
             c: optionals.next().then(|| self.read_slice(len)),
@@ -275,8 +275,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn vertex(&mut self, len: u32, optionals: &mut Optionals) -> Vertex<'a> {
-        Vertex {
+    fn vertex(&mut self, len: u32, optionals: &mut Optionals) -> VertexSlice<'a> {
+        VertexSlice {
             len,
             position: self.int16_3(len),
             normal: optionals.next().then(|| self.int8_3(len)),
@@ -287,8 +287,8 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn triangle(&mut self, len: u32, optionals: &mut Optionals) -> Triangle<'a> {
-        Triangle { len, topology_flags: optionals.next().then(|| self.read_slice(len)) }
+    fn triangle(&mut self, len: u32, optionals: &mut Optionals) -> TriangleSlice<'a> {
+        TriangleSlice { len, topology_flags: optionals.next().then(|| self.read_slice(len)) }
     }
 }
 

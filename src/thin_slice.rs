@@ -1,5 +1,5 @@
 use core::{ptr::NonNull, marker::PhantomData, slice};
-use crate::range::RangeInstance;
+use crate::range::Range;
 
 #[derive(Clone, Copy)]
 pub struct ThinSlice<'a, T> {
@@ -33,14 +33,14 @@ impl<'a, T> ThinSlice<'a, T> {
         NonNull::slice_from_raw_parts(self.start, len as usize).as_ref()
     }
 
-    pub unsafe fn slice_range(self, range: RangeInstance<u32>) -> &'a [T] {
+    pub unsafe fn slice_range(self, range: &Range<u32>) -> &'a [T] {
         #[cfg(debug_assertions)]
         debug_assert!(self.len >= (range.start + range.count) as usize, "len: {} range: {:?}", self.len, range);
 
         slice::from_raw_parts(self.start.as_ptr().add(range.start as usize), range.count as usize).as_ref()
     }
 
-    pub unsafe fn range(self, range: RangeInstance<u32>) -> ThinSlice<'a, T>
+    pub unsafe fn range(self, range: &Range<u32>) -> ThinSlice<'a, T>
     where T: 'a
     {
         #[cfg(debug_assertions)]

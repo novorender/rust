@@ -37,10 +37,10 @@ mod benches {
             schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
         });
 
-        for p in schema.sub_mesh_projection.primitive_type() {
+        for p in unsafe{ schema.sub_mesh_projection.primitive_type.as_slice(schema.sub_mesh_projection.len) } {
             assert!((*p as u8) < 7);
         }
-        for p in schema.sub_mesh_projection.attributes() {
+        for p in unsafe{ schema.sub_mesh_projection.attributes.as_slice(schema.sub_mesh_projection.len) } {
             let mut p = *p;
             p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::NORMAL);
             p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::COLOR);

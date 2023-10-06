@@ -6,18 +6,10 @@ use half::f16;
 
 use crate::types_2_0::*;
 use crate::thin_slice::{ThinSliceIter, ThinSliceIterator};
-use crate::range::RangeInstance;
 
-#[derive(Clone, Copy)]
-pub struct Float3Instance {
-    x: f32,
-    y: f32,
-    z: f32
-}
-
-impl<'a> Float3<'a> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> Float3Instance {
-        Float3Instance {
+impl<'a> Float3Slice<'a> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> Float3 {
+        Float3 {
             x: *self.x.get_unchecked(index),
             y: *self.y.get_unchecked(index),
             z: *self.z.get_unchecked(index)
@@ -36,11 +28,11 @@ pub struct Float3Iter<'a> {
 }
 
 impl<'a> ThinSliceIterator for Float3Iter<'a> {
-    type Item = Float3Instance;
+    type Item = Float3;
 
     #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
-        Float3Instance {
+        Float3 {
             x: unsafe{ *self.x.next() },
             y: unsafe{ *self.y.next() },
             z: unsafe{ *self.z.next() },
@@ -48,11 +40,11 @@ impl<'a> ThinSliceIterator for Float3Iter<'a> {
     }
 }
 
-impl std::ops::Add for Float3Instance {
-    type Output = Float3Instance;
+impl std::ops::Add for Float3 {
+    type Output = Float3;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Float3Instance {
+        Float3 {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
@@ -60,9 +52,9 @@ impl std::ops::Add for Float3Instance {
     }
 }
 
-impl From<Double3Instance> for Float3Instance {
-    fn from(value: Double3Instance) -> Self {
-        Float3Instance {
+impl From<Double3> for Float3 {
+    fn from(value: Double3) -> Self {
+        Float3 {
             x: value.x as f32,
             y: value.y as f32,
             z: value.z as f32,
@@ -70,16 +62,9 @@ impl From<Double3Instance> for Float3Instance {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Double3Instance {
-    x: f64,
-    y: f64,
-    z: f64
-}
-
-impl<'a> Double3<'a> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> Double3Instance {
-        Double3Instance {
+impl<'a> Double3Slice<'a> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> Double3 {
+        Double3 {
             x: *self.x.get_unchecked(index),
             y: *self.y.get_unchecked(index),
             z: *self.z.get_unchecked(index)
@@ -98,11 +83,11 @@ pub struct Double3Iter<'a> {
 }
 
 impl<'a> ThinSliceIterator for Double3Iter<'a> {
-    type Item = Double3Instance;
+    type Item = Double3;
 
     #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
-        Double3Instance {
+        Double3 {
             x: unsafe{ *self.x.next() },
             y: unsafe{ *self.y.next() },
             z: unsafe{ *self.z.next() },
@@ -110,42 +95,27 @@ impl<'a> ThinSliceIterator for Double3Iter<'a> {
     }
 }
 
-pub struct AABBInstance {
-    min: Float3Instance,
-    max: Float3Instance,
-}
-
-impl<'a> AABB<'a> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> AABBInstance {
-        AABBInstance {
+impl<'a> AABBSlice<'a> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> AABB {
+        AABB {
             min: self.min.get_unchecked(index),
             max: self.max.get_unchecked(index)
         }
     }
 }
 
-pub struct BoundingSphereInstance {
-    origo: Float3Instance,
-    radius: f32,
-}
-
-impl<'a> BoundingSphere<'a> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> BoundingSphereInstance {
-        BoundingSphereInstance {
+impl<'a> BoundingSphereSlice<'a> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> BoundingSphere {
+        BoundingSphere {
             origo: self.origo.get_unchecked(index),
             radius: *self.radius.get_unchecked(index)
         }
     }
 }
 
-pub struct BoundsInstance {
-    _box: AABBInstance,
-    sphere: BoundingSphereInstance,
-}
-
-impl<'a> Bounds<'a> {
-    pub unsafe fn get_unchecked(&self, index: usize) -> BoundsInstance {
-        BoundsInstance {
+impl<'a> BoundsSlice<'a> {
+    pub unsafe fn get_unchecked(&self, index: usize) -> Bounds {
+        Bounds {
             _box: self._box.get_unchecked(index),
             sphere: self.sphere.get_unchecked(index)
         }
@@ -169,31 +139,21 @@ pub struct BoundsIter<'a> {
 }
 
 impl<'a> ThinSliceIterator for BoundsIter<'a> {
-    type Item = BoundsInstance;
+    type Item = Bounds;
 
     #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
-        BoundsInstance {
-            _box: AABBInstance {
+        Bounds {
+            _box: AABB {
                 min: unsafe{ self.box_min.next() },
                 max: unsafe{ self.box_max.next() },
             },
-            sphere: BoundingSphereInstance {
+            sphere: BoundingSphere {
                 origo: unsafe{ self.origo_iter.next() },
                 radius: unsafe{ *self.radius_iter.next() },
             },
         }
     }
-}
-
-pub struct SubMeshProjectionInstance {
-    object_id: u32,
-    primitive_type: PrimitiveType,
-    attributes: OptionalVertexAttribute,
-    num_deviations: u8,
-    num_indices: u32,
-    num_vertices: u32,
-    num_texture_bytes: u32,
 }
 
 pub struct SubMeshProjectionIter<'a> {
@@ -208,7 +168,7 @@ pub struct SubMeshProjectionIter<'a> {
 }
 
 impl<'a> Iterator for SubMeshProjectionIter<'a> {
-    type Item = SubMeshProjectionInstance;
+    type Item = SubMeshProjection;
 
     // SAFETY: We check len before calling next on the thin slice iterators which all have the
     // same size
@@ -218,7 +178,7 @@ impl<'a> Iterator for SubMeshProjectionIter<'a> {
             return None;
         }
         self.len -= 1;
-        Some(unsafe{ SubMeshProjectionInstance{
+        Some(unsafe{ SubMeshProjection{
             object_id: *self.object_id.next(),
             primitive_type: *self.primitive_type.next(),
             attributes: *self.attributes.next(),
@@ -242,9 +202,9 @@ impl<'a> ExactSizeIterator for SubMeshProjectionIter<'a> {
 }
 
 
-impl<'a> SubMeshProjection<'a> {
-    pub unsafe fn range(&self, range: RangeInstance<u32>) -> SubMeshProjection<'a> {
-        SubMeshProjection {
+impl<'a> SubMeshProjectionSlice<'a> {
+    pub unsafe fn range(&self, range: &SubMeshProjectionRange) -> SubMeshProjectionSlice<'a> {
+        SubMeshProjectionSlice {
             len: range.count,
             object_id: self.object_id.range(range),
             primitive_type: self.primitive_type.range(range),
@@ -270,7 +230,7 @@ impl<'a> SubMeshProjection<'a> {
     }
 }
 
-impl<'a> ChildInfo<'a> {
+impl<'a> ChildInfoSlice<'a> {
     pub fn iter(&'a self, schema: &'a Schema<'a>) -> ChildInfoIter<'a> {
         ChildInfoIter {
             schema,
@@ -288,18 +248,6 @@ impl<'a> ChildInfo<'a> {
     }
 }
 
-pub struct ChildInfoInstance<'a> {
-    pub hash: &'a [HashBytes],
-    pub child_index: u8,
-    pub child_mask: u32,
-    pub tolerance: i8,
-    pub total_byte_size: u32,
-    pub offset: Double3Instance,
-    pub scale: f32,
-    pub bounds: BoundsInstance,
-    pub sub_meshes: SubMeshProjection<'a>,
-}
-
 pub struct ChildInfoIter<'a> {
     schema: &'a Schema<'a>,
     len: usize,
@@ -315,7 +263,7 @@ pub struct ChildInfoIter<'a> {
 }
 
 impl<'a> Iterator for ChildInfoIter<'a> {
-    type Item = ChildInfoInstance<'a>;
+    type Item = ChildInfo<'a>;
 
     // SAFETY: We check len before calling next on the thin slice iterators which all have the
     // same size
@@ -327,12 +275,12 @@ impl<'a> Iterator for ChildInfoIter<'a> {
         self.len -= 1;
 
         let hash_range = unsafe{ self.hash.next() };
-        let hash = unsafe{ self.schema.hash_bytes.slice_range(hash_range.0) };
+        let hash = unsafe{ self.schema.hash_bytes.slice_range(&hash_range) };
 
         let sub_meshes_range = unsafe{ self.sub_meshes.next() };
-        let sub_meshes = unsafe{ self.schema.sub_mesh_projection.range(sub_meshes_range.0) };
+        let sub_meshes = unsafe{ self.schema.sub_mesh_projection.range(&sub_meshes_range) };
 
-        Some(ChildInfoInstance {
+        Some(ChildInfo {
             hash,
             child_index: unsafe{ *self.child_index.next() },
             child_mask: unsafe{ *self.child_mask.next() },
@@ -490,14 +438,14 @@ struct AggregateProjections{
     gpu_bytes: usize,
 }
 
-impl<'a> SubMeshProjection<'a> {
+impl<'a> SubMeshProjectionSlice<'a> {
     fn aggregate_projections(&self, separate_positions_buffer: bool, filter: impl Fn(u32) -> bool) -> AggregateProjections {
         let mut primitives = 0usize;
         let mut total_texture_bytes = 0usize;
         let mut total_num_indices = 0usize;
         let mut total_num_vertices = 0usize;
         let mut total_num_vertex_bytes = 0usize;
-        for SubMeshProjectionInstance {
+        for SubMeshProjection {
             object_id,
             primitive_type,
             attributes,
@@ -566,9 +514,9 @@ pub struct Child {
     pub child_mask: u32,
     pub tolerance: i8,
     pub byte_size: u32,
-    pub offset: Double3Instance,
+    pub offset: Double3,
     pub scale: f32,
-    pub bounds: BoundsInstance,
+    pub bounds: Bounds,
     pub primitives: usize,
     pub primitives_delta: usize,
     pub gpu_bytes: usize,
@@ -579,12 +527,12 @@ impl<'a> Schema<'a> {
         self.child_info.iter(self).map(move |child_info| {
             let id = to_hex(child_info.hash);
             let f32_offset = child_info.offset.into();
-            let bounds = BoundsInstance {
-                _box: AABBInstance {
+            let bounds = Bounds {
+                _box: AABB {
                     min: child_info.bounds._box.min + f32_offset,
                     max: child_info.bounds._box.max + f32_offset,
                 },
-                sphere: BoundingSphereInstance {
+                sphere: BoundingSphere {
                     origo: child_info.bounds.sphere.origo + f32_offset,
                     radius: child_info.bounds.sphere.radius
                 }
