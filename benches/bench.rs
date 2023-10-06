@@ -32,9 +32,9 @@ mod benches {
         let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
-        let mut schema = wasm_parser::types_2_1::Schema::read(&data).unwrap();
+        let mut schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
         b.iter(|| {
-            schema = wasm_parser::types_2_1::Schema::read(&data).unwrap();
+            schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
         });
 
         for p in schema.sub_mesh_projection.primitive_type() {
@@ -58,7 +58,7 @@ mod benches {
         let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
-        let schema = wasm_parser::types_2_1::Schema::read(&data).unwrap();
+        let schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
         b.iter(|| {
             let _ = schema.children(true, |_| true).collect::<Vec<_>>();
         });
