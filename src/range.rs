@@ -20,8 +20,17 @@ impl<'a, T: Copy> RangeSlice<'a, T> {
         }
     }
 
-    pub fn iter(&self) -> RangeIter<'a, T> {
+    pub fn thin_iter(&self) -> RangeIter<'a, T> {
         RangeIter { start: self.start.iter(), count: self.count.iter() }
+    }
+
+    pub unsafe fn range(&self, range: &Range<u32>) -> RangeSlice<'a, T>
+    where T: 'a
+    {
+        RangeSlice {
+            start: unsafe{ self.start.range(range) },
+            count: unsafe{ self.count.range(range) },
+        }
     }
 }
 
@@ -59,31 +68,43 @@ macro_rules! impl_range {
             pub struct [<$name Slice>]<'a> (pub $crate::range::RangeSlice<'a, $ty>);
 
             $(#[$outer])*
-            pub struct $name (pub $crate::range::Range<$ty>);
+            pub struct $name (pub $crate::range::Range<u32>);
 
-            pub struct [<$name Iter>]<'a> ($crate::range::RangeIter<'a, $ty>);
+            pub struct [<$name ThinIter>]<'a> ($crate::range::RangeIter<'a, $ty>);
 
             impl<'a> [<$name Slice>]<'a> {
-                pub fn iter(&self) -> [<$name Iter>]<'a> {
-                    [<$name Iter>] (self.0.iter())
+                pub fn thin_iter(&self) -> [<$name ThinIter>]<'a> {
+                    [<$name ThinIter>] (self.0.thin_iter())
                 }
 
                 pub unsafe fn get_unchecked(&self, index: usize) -> $name {
-                    $name(self.0.get_unchecked(index))
+                    let range = unsafe{ self.0.get_unchecked(index) };
+                    $name($crate::range::Range{
+                        start: range.start as u32,
+                        count: range.count as u32,
+                    })
+                }
+
+                pub unsafe fn range(&self, range: &$crate::range::Range<u32>) -> [<$name Slice>]<'a> {
+                    [<$name Slice>](self.0.range(range))
                 }
             }
 
-            impl<'a> $crate::thin_slice::ThinSliceIterator for [<$name Iter>]<'a> {
+            impl<'a> $crate::thin_slice::ThinSliceIterator for [<$name ThinIter>]<'a> {
                 type Item = $name;
 
                 #[inline(always)]
                 unsafe fn next(&mut self) -> $name {
-                    $name(unsafe{ self.0.next() })
+                    let range = unsafe{ self.0.next() };
+                    $name($crate::range::Range{
+                        start: range.start as u32,
+                        count: range.count as u32,
+                    })
                 }
             }
 
             impl core::ops::Deref for $name {
-                type Target = $crate::range::Range<$ty>;
+                type Target = $crate::range::Range<u32>;
 
                 #[inline(always)]
                 fn deref(&self) -> &Self::Target {

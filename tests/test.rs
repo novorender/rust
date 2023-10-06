@@ -37,11 +37,11 @@ fn test_parser() -> anyhow::Result<()>{
     let schema = Schema::parse(&data).unwrap();
     dbg!(then.elapsed());
 
-    for p in unsafe{ schema.sub_mesh_projection.primitive_type.as_slice(schema.sub_mesh_projection.len) } {
+    for p in schema.sub_mesh_projection.primitive_type() {
         assert!((*p as u8) < 7);
     }
 
-    for p in unsafe{ schema.sub_mesh_projection.attributes.as_slice(schema.sub_mesh_projection.len) } {
+    for p in schema.sub_mesh_projection.attributes() {
         let mut p = *p;
         p.remove(OptionalVertexAttribute::NORMAL);
         p.remove(OptionalVertexAttribute::COLOR);
@@ -90,10 +90,11 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
     performance.mark("end schema")?;
     performance.measure_with_start_mark_and_end_mark("schema", "start schema", "end schema")?;
 
-    for p in unsafe{ schema.sub_mesh_projection.primitive_type.as_slice(schema.sub_mesh_projection.len) } {
+    for p in schema.sub_mesh_projection.primitive_type() {
         assert!((*p as u8) < 7);
     }
-    for p in unsafe{ schema.sub_mesh_projection.attributes.as_slice(schema.sub_mesh_projection.len) } {
+
+    for p in schema.sub_mesh_projection.attributes() {
         let mut p = *p;
         p.remove(OptionalVertexAttribute::NORMAL);
         p.remove(OptionalVertexAttribute::COLOR);

@@ -1,13 +1,24 @@
 use core::{ptr::NonNull, marker::PhantomData, slice};
 use crate::range::Range;
 
-#[derive(Clone, Copy)]
 pub struct ThinSlice<'a, T> {
     start: NonNull<T>,
     #[cfg(debug_assertions)]
     len: usize,
     marker: PhantomData<&'a ()>,
 }
+
+impl<'a, T> Clone for ThinSlice<'a, T> {
+    fn clone(&self) -> Self {
+        ThinSlice {
+            start: self.start,
+            #[cfg(debug_assertions)]
+            len: self.len,
+            marker: PhantomData }
+    }
+}
+
+impl<'a, T> Copy for ThinSlice<'a, T> {}
 
 impl<'a, T> ThinSlice<'a, T> {
     pub fn from_data_and_offset(data: &'a [u8], offset: usize, _len: u32) -> ThinSlice<'a, T> {
@@ -56,7 +67,17 @@ impl<'a, T> ThinSlice<'a, T> {
         &*self.start.as_ptr().add(index)
     }
 
+    //TODO: Remove once everything calls thin_iter
     pub fn iter(self) -> ThinSliceIter<'a, T> {
+        ThinSliceIter {
+            start: self.start,
+            #[cfg(debug_assertions)]
+            len: self.len,
+            marker: PhantomData
+        }
+    }
+
+    pub fn thin_iter(self) -> ThinSliceIter<'a, T> {
         ThinSliceIter {
             start: self.start,
             #[cfg(debug_assertions)]

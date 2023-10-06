@@ -1,0 +1,21 @@
+[package]
+name = "wasm-parser-derive"
+version = "0.13.0"
+edition = "2021"
+
+authors = ["Arturo Castro <ac@novorender.com>"]
+
+readme = "../README.md"
+description = "Procedural macros for SoA to AoS and related implementations in wasm-parser"
+
+repository = "https://github.com/novorender/rust"
+homepage = "https://github.com/novorender/rust"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = {version = "2", features = ["derive", "extra-traits"]}
+quote = "1"
+proc-macro2 = "1"
+smallvec = "1.11.1"

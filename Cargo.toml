@@ -5,11 +5,18 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = [
+    "wasm-parser-derive",
+    "example",
+]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 paste = "1.0.14"
+wasm-parser-derive = { path = "wasm-parser-derive" }
 bitflags = { version = "2.4.0", features = ["serde", "bytemuck"] }
 half = { version = "2.3.1", features = ["bytemuck", "serde"] }
 anyhow = "1.0.75"

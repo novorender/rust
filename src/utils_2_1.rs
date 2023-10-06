@@ -235,7 +235,7 @@ impl<'a> ChildInfoSlice<'a> {
         ChildInfoIter {
             schema,
             len: self.len as usize,
-            hash: self.hash.iter(),
+            hash: self.hash.thin_iter(),
             child_index: self.child_index.iter(),
             child_mask: self.child_mask.iter(),
             tolerance: self.tolerance.iter(),
@@ -243,8 +243,8 @@ impl<'a> ChildInfoSlice<'a> {
             offset: self.offset.iter(),
             scale: self.scale.iter(),
             bounds: self.bounds.iter(),
-            sub_meshes: self.sub_meshes.iter(),
-            descendant_object_ids: self.descendant_object_ids.iter(),
+            sub_meshes: self.sub_meshes.thin_iter(),
+            descendant_object_ids: self.descendant_object_ids.thin_iter(),
         }
     }
 }
@@ -252,7 +252,7 @@ impl<'a> ChildInfoSlice<'a> {
 pub struct ChildInfoIter<'a> {
     schema: &'a Schema<'a>,
     len: usize,
-    hash: HashRangeIter<'a>,
+    hash: HashRangeThinIter<'a>,
     child_index: ThinSliceIter<'a, u8>,
     child_mask: ThinSliceIter<'a, u32>,
     tolerance: ThinSliceIter<'a, i8>,
@@ -260,8 +260,8 @@ pub struct ChildInfoIter<'a> {
     offset: Double3Iter<'a>,
     scale: ThinSliceIter<'a, f32>,
     bounds: BoundsIter<'a>,
-    sub_meshes: SubMeshProjectionRangeIter<'a>,
-    descendant_object_ids: DescendantObjectIdsRangeIter<'a>,
+    sub_meshes: SubMeshProjectionRangeThinIter<'a>,
+    descendant_object_ids: DescendantObjectIdsRangeThinIter<'a>,
 }
 
 impl<'a> Iterator for ChildInfoIter<'a> {
