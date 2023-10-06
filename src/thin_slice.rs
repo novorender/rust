@@ -10,12 +10,12 @@ pub struct ThinSlice<'a, T> {
 }
 
 impl<'a, T> ThinSlice<'a, T> {
-    pub fn from_data_and_offset(data: &'a [u8], offset: usize, len: u32) -> ThinSlice<'a, T> {
+    pub fn from_data_and_offset(data: &'a [u8], offset: usize, _len: u32) -> ThinSlice<'a, T> {
         let ptr = unsafe{ NonNull::new_unchecked(data[offset..].as_ptr() as *const T as *mut T) };
         ThinSlice {
             start: ptr,
             #[cfg(debug_assertions)]
-            len: len as usize,
+            len: _len as usize,
             marker: PhantomData,
         }
     }
@@ -49,7 +49,7 @@ impl<'a, T> ThinSlice<'a, T> {
         self.slice_range(range).into()
     }
 
-    pub unsafe fn get(self, index: usize) -> &'a T {
+    pub unsafe fn get_unchecked(self, index: usize) -> &'a T {
         #[cfg(debug_assertions)]
         debug_assert!(index < self.len);
 
@@ -81,6 +81,7 @@ pub struct ThinSliceIter<'a, T> {
 impl<'a, T: 'a> ThinSliceIterator for ThinSliceIter<'a, T> {
     type Item = &'a T;
 
+    #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
         unsafe{
             #[cfg(debug_assertions)]

@@ -16,8 +16,12 @@ pub struct Float3Instance {
 }
 
 impl<'a> Float3<'a> {
-    pub unsafe fn get(&self, index: usize) -> Float3Instance {
-        Float3Instance { x: *self.x.get(index), y: *self.y.get(index), z: *self.z.get(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> Float3Instance {
+        Float3Instance {
+            x: *self.x.get_unchecked(index),
+            y: *self.y.get_unchecked(index),
+            z: *self.z.get_unchecked(index)
+        }
     }
 
     pub fn iter(&self) -> Float3Iter {
@@ -34,6 +38,7 @@ pub struct Float3Iter<'a> {
 impl<'a> ThinSliceIterator for Float3Iter<'a> {
     type Item = Float3Instance;
 
+    #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
         Float3Instance {
             x: unsafe{ *self.x.next() },
@@ -73,8 +78,12 @@ pub struct Double3Instance {
 }
 
 impl<'a> Double3<'a> {
-    pub unsafe fn get(&self, index: usize) -> Double3Instance {
-        Double3Instance { x: *self.x.get(index), y: *self.y.get(index), z: *self.z.get(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> Double3Instance {
+        Double3Instance {
+            x: *self.x.get_unchecked(index),
+            y: *self.y.get_unchecked(index),
+            z: *self.z.get_unchecked(index)
+        }
     }
 
     pub fn iter(&self) -> Double3Iter {
@@ -91,6 +100,7 @@ pub struct Double3Iter<'a> {
 impl<'a> ThinSliceIterator for Double3Iter<'a> {
     type Item = Double3Instance;
 
+    #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
         Double3Instance {
             x: unsafe{ *self.x.next() },
@@ -106,8 +116,11 @@ pub struct AABBInstance {
 }
 
 impl<'a> AABB<'a> {
-    pub unsafe fn get(&self, index: usize) -> AABBInstance {
-        AABBInstance { min: self.min.get(index), max: self.max.get(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> AABBInstance {
+        AABBInstance {
+            min: self.min.get_unchecked(index),
+            max: self.max.get_unchecked(index)
+        }
     }
 }
 
@@ -117,8 +130,11 @@ pub struct BoundingSphereInstance {
 }
 
 impl<'a> BoundingSphere<'a> {
-    pub unsafe fn get(&self, index: usize) -> BoundingSphereInstance {
-        BoundingSphereInstance { origo: self.origo.get(index), radius: *self.radius.get(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> BoundingSphereInstance {
+        BoundingSphereInstance {
+            origo: self.origo.get_unchecked(index),
+            radius: *self.radius.get_unchecked(index)
+        }
     }
 }
 
@@ -128,8 +144,11 @@ pub struct BoundsInstance {
 }
 
 impl<'a> Bounds<'a> {
-    pub unsafe fn get(&self, index: usize) -> BoundsInstance {
-        BoundsInstance { _box: self._box.get(index), sphere: self.sphere.get(index) }
+    pub unsafe fn get_unchecked(&self, index: usize) -> BoundsInstance {
+        BoundsInstance {
+            _box: self._box.get_unchecked(index),
+            sphere: self.sphere.get_unchecked(index)
+        }
     }
 
     pub fn iter(&self) -> BoundsIter {
@@ -152,6 +171,7 @@ pub struct BoundsIter<'a> {
 impl<'a> ThinSliceIterator for BoundsIter<'a> {
     type Item = BoundsInstance;
 
+    #[inline(always)]
     unsafe fn next(&mut self) -> Self::Item {
         BoundsInstance {
             _box: AABBInstance {
@@ -166,6 +186,16 @@ impl<'a> ThinSliceIterator for BoundsIter<'a> {
     }
 }
 
+pub struct SubMeshProjectionInstance {
+    object_id: u32,
+    primitive_type: PrimitiveType,
+    attributes: OptionalVertexAttribute,
+    num_deviations: u8,
+    num_indices: u32,
+    num_vertices: u32,
+    num_texture_bytes: u32,
+}
+
 pub struct SubMeshProjectionIter<'a> {
     len: u32,
     object_id: ThinSliceIter<'a, u32>,
@@ -178,24 +208,25 @@ pub struct SubMeshProjectionIter<'a> {
 }
 
 impl<'a> Iterator for SubMeshProjectionIter<'a> {
-    type Item = (u32, PrimitiveType, OptionalVertexAttribute, u8, u32, u32, u32);
+    type Item = SubMeshProjectionInstance;
 
     // SAFETY: We check len before calling next on the thin slice iterators which all have the
     // same size
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
             return None;
         }
         self.len -= 1;
-        Some(unsafe{(
-            *self.object_id.next(),
-            *self.primitive_type.next(),
-            *self.attributes.next(),
-            *self.num_deviations.next(),
-            *self.num_indices.next(),
-            *self.num_vertices.next(),
-            *self.num_texture_bytes.next(),
-        )})
+        Some(unsafe{ SubMeshProjectionInstance{
+            object_id: *self.object_id.next(),
+            primitive_type: *self.primitive_type.next(),
+            attributes: *self.attributes.next(),
+            num_deviations: *self.num_deviations.next(),
+            num_indices: *self.num_indices.next(),
+            num_vertices: *self.num_vertices.next(),
+            num_texture_bytes: *self.num_texture_bytes.next(),
+        }})
     }
 }
 
@@ -280,6 +311,7 @@ impl<'a> Iterator for ChildInfoIter<'a> {
 
     // SAFETY: We check len before calling next on the thin slice iterators which all have the
     // same size
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
             return None;
@@ -453,7 +485,7 @@ impl<'a> SubMeshProjection<'a> {
         let mut total_num_indices = 0usize;
         let mut total_num_vertices = 0usize;
         let mut total_num_vertex_bytes = 0usize;
-        for (
+        for SubMeshProjectionInstance {
             object_id,
             primitive_type,
             attributes,
@@ -461,8 +493,7 @@ impl<'a> SubMeshProjection<'a> {
             num_indices,
             num_vertices,
             num_texture_bytes
-        ) in self.iter()
-        {
+        } in self.iter() {
             if filter(object_id) {
                 let has_materials = num_texture_bytes == 0;
                 let has_object_ids = true;

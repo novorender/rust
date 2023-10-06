@@ -13,8 +13,15 @@ pub struct RangeInstance<T> {
 }
 
 impl<'a, T: Copy> Range<'a, T> {
-    pub unsafe fn get(&self, index: usize) -> RangeInstance<T> {
-        RangeInstance{ start: *self.start.get(index), count: *self.count.get(index)}
+    pub unsafe fn get_unchecked(&self, index: usize) -> RangeInstance<T> {
+        RangeInstance{
+            start: *self.start.get_unchecked(index),
+            count: *self.count.get_unchecked(index)
+        }
+    }
+
+    pub fn iter(&self) -> RangeIter<'a, T> {
+        RangeIter { start: self.start.iter(), count: self.count.iter() }
     }
 }
 
@@ -31,6 +38,7 @@ pub struct RangeIter<'a, T> {
 impl<'a, T: Copy + 'a> ThinSliceIterator for RangeIter<'a, T> {
     type Item = RangeInstance<T>;
 
+    #[inline(always)]
     unsafe fn next(&mut self) -> RangeInstance<T> {
         RangeInstance {
             start: unsafe{ *self.start.next() },
@@ -49,16 +57,18 @@ macro_rules! impl_range_iter {
 
             impl<'a> $name<'a> {
                 pub fn iter(&self) -> [<$name Iter>]<'a> {
-                    [<$name Iter>] ($crate::range::RangeIter {
-                        start: self.0.start.iter(),
-                        count: self.0.count.iter(),
-                    })
+                    [<$name Iter>] (self.0.iter())
+                }
+
+                pub unsafe fn get_unchecked(&self, index: usize) -> [<$name Instance>] {
+                    [<$name Instance>](self.0.get_unchecked(index))
                 }
             }
 
             impl<'a> $crate::thin_slice::ThinSliceIterator for [<$name Iter>]<'a> {
                 type Item = [<$name Instance>];
 
+                #[inline(always)]
                 unsafe fn next(&mut self) -> [<$name Instance>] {
                     [<$name Instance>](unsafe{ self.0.next() })
                 }
