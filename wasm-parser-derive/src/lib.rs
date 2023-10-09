@@ -3,14 +3,47 @@ extern crate proc_macro;
 use proc_macro2::{TokenStream, Ident, Span};
 use quote::{TokenStreamExt, ToTokens};
 use smallvec::SmallVec;
-use syn::{parse_macro_input, DeriveInput, Meta, Type, PathArguments, GenericArgument, TypeReference};
+use syn::{parse_macro_input, DeriveInput, Meta, Type, PathArguments, GenericArgument};
 use quote::quote;
-use syn::parse::Parse;
 
-// fn impl_enum(name: Ident, data: DataEnum) -> proc_macro::TokenStream {
-//     let ident = data.
-// }
+enum Range<'a> {
+    PrimitiveSlice {
+        /// The data type referenced by this range
+        data_type: TokenStream,
+        /// The actual range type
+        range_type: &'a TokenStream
+    },
+    NestedSlice {
+        /// The data type referenced by this range
+        data_type: &'a Type,
+        /// The actual range type
+        range_type: &'a TokenStream
+    },
+}
 
+enum FieldType<'a> {
+    Primitive(&'a Type),
+    OptionalPrimitive(&'a Type),
+    Nested(&'a Type),
+    OptionalNested(&'a Type),
+    Range(Range<'a>),
+}
+
+struct Field<'a> {
+    ident: &'a Ident,
+    ty: FieldType<'a>,
+}
+
+impl<'a> Field<'a> {
+    fn is_range(&self) -> bool {
+        if let FieldType::Range(_) = &self.ty { true } else { false }
+    }
+
+    fn is_optional(&self) -> bool {
+        if let FieldType::OptionalPrimitive(_) | FieldType::OptionalNested(_)
+            = &self.ty { true } else { false }
+    }
+}
 
 #[proc_macro_derive(StructOfArray, attributes(soa_len, soa_nested, soa_range, soa_range_index))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -22,9 +55,6 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let vis = ast.vis;
     let ty_generics = ast.generics;
     // let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
-    let slice_name = Ident::new(&format!("{}Slice", name.to_token_stream()), Span::call_site());
-    let iter_name = Ident::new(&format!("{}Iter", name.to_token_stream()), Span::call_site());
-    let thin_iter_name = Ident::new(&format!("{}ThinIter", name.to_token_stream()), Span::call_site());
 
     let struct_data = match ast.data{
 		syn::Data::Enum(enum_data) => return syn::Error::new(
@@ -41,14 +71,9 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let fields = struct_data.fields;
 
-    let iter_field_name = fields.iter()
+    let field_name = fields.iter()
         .map(|field| &field.ident)
         .collect::<SmallVec<[_;10]>>();
-    let iter_field_name = &iter_field_name;
-    let thin_iter_field_name = fields.iter()
-        .map(|field| &field.ident)
-        .collect::<SmallVec<[_;10]>>();
-    let thin_iter_field_name = &thin_iter_field_name;
 
     // Detect primitive from type and add exceptions to type that look like non primitive
     // let field_is_primitive = fields.iter().map(|field| {
@@ -68,151 +93,170 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     //     is_primitive_attr || looks_like_primitive_type
     // }).collect::<SmallVec<[bool;10]>>();
 
-    let field_attrs = fields.iter().map(|field| {
-        let mut is_primitive = !field.attrs.iter().any(|attr| match &attr.meta {
+
+    // Fields that have the soa_len attribute will get a len field and implement Iterator
+    let has_len = ast.attrs.iter().any(|attr| match &attr.meta {
+        Meta::Path(path) => path.segments.len() == 1 && path.segments[0].ident == "soa_len",
+        _ => false,
+    });
+
+    let fields = fields.iter().map(|field| {
+        let is_primitive = !field.attrs.iter().any(|attr| match &attr.meta {
             Meta::Path(path) => path.segments.len() == 1 && path.segments[0].ident == "soa_nested",
             _ => false,
         });
 
-        let range = field.attrs.iter().filter_map(|attr| match &attr.meta {
+        let range_type = field.attrs.iter().filter_map(|attr| match &attr.meta {
             Meta::List(meta_list) => if meta_list.path.segments.len() == 1
                 && meta_list.path.segments[0].ident == "soa_range"
             {
-                Some(meta_list.tokens.clone())
+                Some(&meta_list.tokens)
             }else{
                 None
             },
             _ => None,
         }).next();
 
-        let is_range = range.is_some();
+        let is_range = range_type.is_some();
 
-        let (is_optional, slice_type, range_data_type, range_is_slice) = match &field.ty {
-            Type::Path(path) => if !path.path.segments.is_empty() {
-                if path.path.segments[0].ident.to_string() == "Option" {
-                    match &path.path.segments[0].arguments {
-                        PathArguments::AngleBracketed(args) => match &args.args[0] {
-                            GenericArgument::Type(ty) => (true, quote!(#ty), None, false),
-                            _ => todo!()
+        let field_ty = match &field.ty {
+            Type::Path(path) => if path.path.segments[0].ident.to_string() == "Option" {
+                match &path.path.segments[0].arguments {
+                    PathArguments::AngleBracketed(args) => match &args.args[0] {
+                        GenericArgument::Type(ty) => if is_range {
+                            return Err(syn::Error::new(
+                                field.ident.as_ref().unwrap().span(),
+                                "Nested range fields are not supported yet"
+                            ))
+                        }else if is_primitive {
+                            FieldType::OptionalPrimitive(ty)
+                        }else{
+                            FieldType::OptionalNested(ty)
                         }
-                        _ => todo!()
+                        _ => unreachable!()
                     }
-                }else if let Some(range) = range{
-                    is_primitive = false;
-                    // let range_slice_ty = Ident::new(&format!("{}Slice", range), Span::call_site());
-                    let range_slice_ty = &field.ty;
-                    (false, range, Some(quote!(#range_slice_ty)), false)
-                }else{
-                    let ty = &field.ty;
-                    (false, quote!(#ty), None, false)
+                    _ => unreachable!()
                 }
+            }else if let Some(range_type) = range_type {
+                FieldType::Range(Range::NestedSlice { data_type: &field.ty, range_type })
+            }else if is_primitive {
+                FieldType::Primitive(&field.ty)
             }else{
-                todo!()
+                FieldType::Nested(&field.ty)
             },
 
-            Type::Reference(reference) => if let Some(range) = range {
-                is_primitive = false;
+            Type::Reference(reference) => if let Some(range_type) = range_type {
                 if let Type::Slice(slice) = &*reference.elem {
                     let range_data_type = &*slice.elem;
-                    (false, range, Some(quote!(#crate_name::thin_slice::ThinSlice<'a, #range_data_type>)), true)
+                    FieldType::Range(Range::PrimitiveSlice{
+                        data_type: quote!(#crate_name::thin_slice::ThinSlice<'a, #range_data_type>),
+                        range_type,
+                    })
                 }else{
-                    let ty = &field.ty;
-                    (false, quote!(#ty), None, false)
+                    return Err(syn::Error::new(
+                        field.ident.as_ref().unwrap().span(),
+                        "Ranges can only be references to slices or nested thin slices"
+                    ))
                 }
             }else{
-                let ty = &field.ty;
-                (false, quote!(#ty), None, false)
+                return Err(syn::Error::new(
+                    field.ident.as_ref().unwrap().span(),
+                    "Primitive type references are not supported yet"
+                ))
             }
 
-            other => (false, quote!(#other), None, false),
+            _ => if is_primitive {
+                FieldType::Primitive(&field.ty)
+            }else{
+                FieldType::Nested(&field.ty)
+            }
         };
 
-        (is_primitive, is_optional, is_range, slice_type, range_data_type, range_is_slice)
-    }).collect::<SmallVec<[(bool, bool, bool, TokenStream, Option<TokenStream>, bool);10]>>();
+        Ok(Field {
+            ident: field.ident.as_ref().unwrap(),
+            ty: field_ty
+        })
+    }).collect::<Result<SmallVec<[Field;10]>, syn::Error>>();
 
-    let slice_field_ty = field_attrs.iter()
-        .map(|(is_primitive, is_optional, is_range, ty, range_data_type, range_is_slice)|  {
-            if *is_primitive && !*is_optional {
-                quote!(#crate_name::thin_slice::ThinSlice<'a, #ty>)
-            }else if *is_primitive && *is_optional {
-                quote!(Option<#crate_name::thin_slice::ThinSlice<'a, #ty>>)
-            }else if !*is_primitive && !*is_optional {
+    let fields = match fields {
+        Ok(fields) => fields,
+        Err(err) => return err.to_compile_error().into()
+    };
+
+    // Field types for the Slice struct
+    let slice_field_ty = fields.iter()
+        .map(|field|  match &field.ty {
+            FieldType::Primitive(ty) =>
+                quote!(#crate_name::thin_slice::ThinSlice<'a, #ty>),
+            FieldType::OptionalPrimitive(ty) =>
+                quote!(Option<#crate_name::thin_slice::ThinSlice<'a, #ty>>),
+            FieldType::Nested(ty) => {
                 let ty = Ident::new(&format!("{}Slice", ty.to_token_stream()), Span::call_site());
                 quote!(#ty <'a>)
-            }else{ // !is_primitive && is_optional
+            }
+            FieldType::OptionalNested(ty) => {
                 let ty = Ident::new(&format!("{}Slice", ty.to_token_stream()), Span::call_site());
                 quote!(Option<#ty <'a>>)
+            }
+            FieldType::Range(Range::PrimitiveSlice { range_type, .. })
+                | FieldType::Range(Range::NestedSlice { range_type, .. }) =>
+            {
+                // TypeRange -> TypeRangeSlice generated in impl_range
+                let ty = Ident::new(&format!("{}Slice", range_type), Span::call_site());
+                quote!(#ty <'a>)
             }
         });
 
-    let iter_field_ty = field_attrs.iter()
-        .map(|(is_primitive, is_optional, is_range, ty, range_data_type, range_is_slice)|  {
-            if *is_primitive && !*is_optional {
-                quote!(#crate_name::thin_slice::ThinSliceIter<'a, #ty>)
-            }else if *is_primitive && *is_optional {
-                quote!(Option<#crate_name::thin_slice::ThinSliceIter<'a, #ty>>)
-            }else if !*is_primitive && !*is_optional {
+    // Field types for the ThinIter struct
+    let iter_field_ty = fields.iter()
+        .map(|field| match &field.ty {
+            FieldType::Primitive(ty) =>
+                quote!(#crate_name::thin_slice::ThinSliceIter<'a, #ty>),
+            FieldType::OptionalPrimitive(ty) =>
+                quote!(Option<#crate_name::thin_slice::ThinSliceIter<'a, #ty>>),
+            FieldType::Nested(ty) => {
+                // Type -> TypeThinIter which is generated for every type in this macro
                 let ty = Ident::new(&format!("{}ThinIter", ty.to_token_stream()), Span::call_site());
                 quote!(#ty <'a>)
-            }else{ // !is_primitive && is_optional
+            }
+            FieldType::OptionalNested(ty) => {
+                // Option<Type> -> Option<TypeThinIter> which is generated for every type in this macro
                 let ty = Ident::new(&format!("{}ThinIter", ty.to_token_stream()), Span::call_site());
                 quote!(Option<#ty <'a>>)
             }
-        }).collect::<SmallVec<[_;10]>>();
+            FieldType::Range(Range::NestedSlice { range_type, .. }) =>{
+                // TypeRange => TypeRangeThinIter which is generated by the impl_range macro
+                let ty = Ident::new(&format!("{}ThinIter", range_type), Span::call_site());
+                quote!(#ty <'a>)
+            }
+            FieldType::Range(Range::PrimitiveSlice { range_type, .. }) => {
+                // TypeRange => TypeRangeThinIter which is generated by the impl_range macro
+                let ty = Ident::new(&format!("{}ThinIter", range_type), Span::call_site());
+                quote!(#ty <'a>)
 
-    let iter_field_value = fields.iter()
-        .zip(&field_attrs)
-        .map(|(field, (is_primitive, is_optional, is_range, _, range_data_type, range_is_slice))|  {
-            let field_name = &field.ident;
-            if !*is_range {
-                if *is_primitive && !*is_optional {
-                    quote!(*self.#field_name.next())
-                }else if *is_primitive && *is_optional {
-                    quote!(self.#field_name.as_mut().map(|#field_name| *#field_name.next()))
-                }else if !*is_primitive && !*is_optional {
-                    quote!(self.#field_name.next())
-                }else{ // !is_primitive && is_optional
-                    quote!(self.#field_name.as_mut().map(|#field_name| #field_name.next()))
-                }
-            }else{
-                let field_data_name = Ident::new(&format!("{}_data", field.ident.to_token_stream()), Span::call_site());
-                if !*is_optional && *range_is_slice {
-                    quote!(self.#field_data_name.slice_range(&self.#field_name.next()))
-                }else if !*is_optional && !*range_is_slice{
-                    quote!(self.#field_data_name.range(&self.#field_name.next()))
-                }else{
-                    todo!()
-                }
             }
         }).collect::<SmallVec<[_;10]>>();
 
-    let slice_field_thin_iter = fields.iter()
-        .zip(&field_attrs)
-        .map(|(field, (_, is_optional, is_range, _, range_data_type, range_is_slice))|  {
-            let field_name = &field.ident;
-            if !*is_optional {
-                quote!(self.#field_name.thin_iter())
-            }else if !*is_optional {
-                quote!(self.#field_name.thin_iter())
-            }else{
-                quote!(self.#field_name.as_ref().map(|#field_name| #field_name.thin_iter()))
-            }
-        }).collect::<SmallVec<[_;10]>>();
-
+    // Data field types for the ThinIter struct (those fields used to retrieve the actual data from
+    // the range) the type is just the slice type, ThinSlice<_> for primitives or TypeSlice for
+    // nested
     let iter_data_field_ty = fields.iter()
-        .zip(&field_attrs)
-        .filter_map(|(field, (_, is_optional, is_range, _, range_data_type, range_is_slice))|  {
-            if *is_range {
-                Some(quote!(#range_data_type))
-            }else{
-                None
+        .filter_map(|field|  {
+            match &field.ty {
+                FieldType::Range(range) => match range {
+                    Range::PrimitiveSlice { data_type, .. }
+                        => Some(quote!(#data_type)),
+                    Range::NestedSlice { data_type, .. }
+                        => Some(quote!(#data_type)),
+                }
+                _ => None
             }
         }).collect::<SmallVec<[_;10]>>();
 
+    // Data field names for the ThinIter struct
     let iter_data_field_name = fields.iter()
-        .zip(&field_attrs)
-        .filter_map(|(field, (_, is_optional, is_range, _, range_data_type, range_is_slice))|  {
-            if *is_range {
+        .filter_map(|field|  {
+            if field.is_range() {
                 let field_data_name = Ident::new(&format!("{}_data", field.ident.to_token_stream()), Span::call_site());
                 Some(quote!(#field_data_name))
             }else{
@@ -220,71 +264,78 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }).collect::<SmallVec<[_;10]>>();
 
-    let has_len = ast.attrs.iter().any(|attr| match &attr.meta {
-        Meta::Path(path) => path.segments.len() == 1 && path.segments[0].ident == "soa_len",
-        _ => false,
-    });
+    // Field value for the ThinIter Output on next
+    let iter_field_value = fields.iter()
+        .map(|field|  {
+            let field_name = field.ident;
+            match &field.ty {
+                FieldType::Primitive(_) => quote!(*self.#field_name.next()),
+                FieldType::Nested(_) => quote!(self.#field_name.next()),
+                FieldType::OptionalPrimitive(_) =>
+                    quote!(self.#field_name.as_mut().map(|#field_name| *#field_name.next())),
+                FieldType::OptionalNested(_) =>
+                    quote!(self.#field_name.as_mut().map(|#field_name| #field_name.next())),
+                FieldType::Range(Range::PrimitiveSlice { .. }) => {
+                    let field_data_name = Ident::new(&format!("{}_data", field_name.to_token_stream()), Span::call_site());
+                    quote!(self.#field_data_name.slice_range(&self.#field_name.next()))
+                }
+                FieldType::Range(Range::NestedSlice { .. }) => {
+                    let field_data_name = Ident::new(&format!("{}_data", field_name.to_token_stream()), Span::call_site());
+                    quote!(self.#field_data_name.range(&self.#field_name.next()))
+                }
+            }
+        }).collect::<SmallVec<[_;10]>>();
 
-    // let range_index_type = ast.attrs.iter().filter_map(|attr| match &attr.meta {
-    //     Meta::List(meta_list) => if meta_list.path.segments.len() == 1
-    //         && meta_list.path.segments[0].ident == "soa_range_index"
-    //     {
-    //         Some(&meta_list.tokens)
-    //     }else{
-    //         None
-    //     },
-    //     _ => None,
-    // }).next();
-
-    let slice_field_name = fields.iter().map(|field| &field.ident);
-    // let range_impl = if let Some(range_index_type) = range_index_type {
-    //     quote!{
-    //         #vis fn range(&self, range: &#range_index_type) -> Self {
-    //             Self {
-    //                 len: range.count,
-    //                 #(
-    //                     #slice_field_name: self.#slice_field_name.range(range),
-    //                 )*
-    //             }
-    //         }
-    //     }
-    // }else{
-    //     quote!()
-    // };
-    let range_impl_calls = fields.iter()
-        .zip(&field_attrs)
-        .map(|(field, (_, is_optional, is_range, _, range_data_type, range_is_slice))|  {
+    // Field value for the Iter and ThinIter types when instanciating on iter() and thin_iter()
+    let slice_field_thin_iter = fields.iter()
+        .map(|field|  {
             let field_name = &field.ident;
-            if !*is_optional {
-                quote!(#field_name: self.#field_name.range(range))
+            if field.is_optional() {
+                quote!(self.#field_name.as_ref().map(|#field_name| #field_name.thin_iter()))
             }else{
+                quote!(self.#field_name.thin_iter())
+            }
+        }).collect::<SmallVec<[_;10]>>();
+
+    // Field name and value on range calls on the Slice types
+    let range_impl_calls = fields.iter()
+        .map(|field|  {
+            let field_name = &field.ident;
+            if field.is_optional() {
                 quote!(#field_name: self.#field_name.as_ref().map(|#field_name| #field_name.range(range)))
+            }else{
+                quote!(#field_name: self.#field_name.range(range))
             }
         });
 
+    // Len field on the Slice type for types with soa_len attribute
     let slice_len_field = if has_len {
         quote!(#vis len: u32,)
     }else{
         quote!()
     };
 
-    let slice_field_name = fields.iter().map(|field| &field.ident);
+    // The Slice type declaration
+    let slice_name: Ident = Ident::new(&format!("{}Slice", name.to_token_stream()), Span::call_site());
     let slice_struct = quote! {
         #[derive(Clone)]
         #vis struct #slice_name <'a> {
             #slice_len_field
             #(
-                #vis #slice_field_name: #slice_field_ty,
+                #vis #field_name: #slice_field_ty,
             )*
         }
     };
 
+    // The Iter and ThinIter types for soa_len or ThinIter declaration for the rest of the types
+    let iter_name = Ident::new(&format!("{}Iter", name.to_token_stream()), Span::call_site());
+    let thin_iter_name = Ident::new(&format!("{}ThinIter", name.to_token_stream()), Span::call_site());
     let iterator = if has_len {
         quote! {
             #vis struct #iter_name <'a> {
                 len: usize,
                 #(
-                    #iter_field_name: #iter_field_ty,
+                    #field_name: #iter_field_ty,
                 )*
                 #(
                     #iter_data_field_name: #iter_data_field_ty,
@@ -293,7 +344,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
             #vis struct #thin_iter_name <'a> {
                 #(
-                    #thin_iter_field_name: #iter_field_ty,
+                    #field_name: #iter_field_ty,
                 )*
                 #(
                     #iter_data_field_name: #iter_data_field_ty,
@@ -304,7 +355,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         quote! {
             #vis struct #thin_iter_name <'a> {
                 #(
-                    #thin_iter_field_name: #iter_field_ty,
+                    #field_name: #iter_field_ty,
                 )*
                 #(
                     #iter_data_field_name: #iter_data_field_ty,
@@ -313,28 +364,29 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
+    // Accessor methods for each primitive or optional primitive fields on Slice types
+    // Nested and nested ranges can't be accessed as a slice as they are not contiguous
+    // TODO: Primitive ranges would need data but could be implemented if needed
     let slice_primitive_field_accessor = fields.iter()
-        .zip(&field_attrs)
-        .map(|(field, (is_primitive, is_optional, is_range, field_ty, range_data_type, range_is_slice))| {
+        .map(|field| {
             let slice_field_name = &field.ident;
-
-            if *is_primitive && !*is_optional {
-                quote! {
-                    #vis fn #slice_field_name (&self) -> &'a [#field_ty] {
+            match &field.ty {
+                FieldType::Primitive(ty) => quote! {
+                    #vis fn #slice_field_name (&self) -> &'a [#ty] {
                         unsafe{ self.#slice_field_name.as_slice(self.len) }
                     }
-                }
-            }else if *is_primitive && *is_optional {
-                quote! {
-                    #vis fn #slice_field_name (&self) -> Option<&'a [#field_ty]> {
+                },
+                FieldType::OptionalPrimitive(ty) => quote! {
+                    #vis fn #slice_field_name (&self) -> Option<&'a [#ty]> {
                         Some(unsafe{ self.#slice_field_name?.as_slice(self.len) })
                     }
-                }
-            }else{
-                quote!()
+                },
+                FieldType::Nested(_) | FieldType::OptionalNested(_)=> quote!(),
+                FieldType::Range(_) => quote!()
             }
         });
 
+    // Implementations for Slice, Iter and ThinIter types
     let implementation = if has_len {
         quote! {
             impl<'a> #slice_name <'a> {
@@ -344,7 +396,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     #iter_name {
                         len: self.len as usize,
                         #(
-                            #iter_field_name: unsafe{ #slice_field_thin_iter },
+                            #field_name: unsafe{ #slice_field_thin_iter },
                         )*
                         #(
                             #iter_data_field_name,
@@ -355,7 +407,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 #vis fn thin_iter(&self #(, #iter_data_field_name: #iter_data_field_ty )*) -> #thin_iter_name <'a> {
                     #thin_iter_name {
                         #(
-                            #iter_field_name: #slice_field_thin_iter,
+                            #field_name: #slice_field_thin_iter,
                         )*
                         #(
                             #iter_data_field_name,
@@ -390,7 +442,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                     Some(unsafe{#name {
                         #(
-                            #iter_field_name: unsafe { #iter_field_value },
+                            #field_name: unsafe { #iter_field_value },
                         )*
                     }})
                 }
@@ -417,7 +469,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                     #name {
                         #(
-                            #thin_iter_field_name: unsafe { #iter_field_value },
+                            #field_name: unsafe { #iter_field_value },
                         )*
                     }
                 }
@@ -429,7 +481,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 #vis fn thin_iter(&self, #( #iter_data_field_name: #iter_data_field_ty )*) -> #thin_iter_name <'a> {
                     #thin_iter_name {
                         #(
-                            #iter_field_name: self.#iter_field_name.thin_iter(),
+                            #field_name: unsafe{ #slice_field_thin_iter },
                         )*
                     }
                 }
@@ -452,7 +504,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
                     #name {
                         #(
-                            #thin_iter_field_name: unsafe { #iter_field_value },
+                            #field_name: unsafe { #iter_field_value },
                         )*
                     }
                 }
