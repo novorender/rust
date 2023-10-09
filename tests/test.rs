@@ -34,7 +34,7 @@ fn test_parser() -> anyhow::Result<()>{
     let data = response.bytes()?;
 
     let then = std::time::Instant::now();
-    let schema = Schema::parse(&data).unwrap();
+    let schema = Schema::parse(&data);
     dbg!(then.elapsed());
 
     for p in schema.sub_mesh_projection.primitive_type() {
@@ -86,7 +86,7 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
 
     let performance = web_sys::window().unwrap().performance().unwrap();
     performance.mark("start schema")?;
-    let schema = Schema::parse(&data).unwrap();
+    let schema = Schema::parse(&data);
     performance.mark("end schema")?;
     performance.measure_with_start_mark_and_end_mark("schema", "start schema", "end schema")?;
 
