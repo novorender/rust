@@ -115,7 +115,7 @@ pub struct ChildVec(usize, usize);
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Schema {
     pub fn parse_2_0(data: Vec<u8>) -> Schema {
-        let schema = types_2_0::Schema::parse(&data).expect("Error parsing schema");
+        let schema = types_2_0::Schema::parse(&data);
         Schema {
             version: "2.0",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
@@ -124,7 +124,7 @@ impl Schema {
     }
 
     pub fn parse_2_1(data: Vec<u8>) -> Schema {
-        let schema = types_2_1::Schema::parse(&data).expect("Error parsing schema");
+        let schema = types_2_1::Schema::parse(&data);
         Schema {
             version: "2.1",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,

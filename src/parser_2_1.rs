@@ -295,7 +295,7 @@ impl<'a> Reader<'a> {
 }
 
 impl<'a> Schema<'a> {
-    pub fn parse(data: &'a [u8]) -> Result<Schema<'a>> {
+    pub fn parse(data: &'a [u8]) -> Schema<'a> {
         let mut reader = Reader { data, next: 0 };
         let sizes: &Sizes = reader.read();
         let mut optionals = Optionals{ flags: reader.read_checked(), next: 0 };
@@ -313,7 +313,7 @@ impl<'a> Schema<'a> {
 
         debug_assert_eq!(reader.next, reader.data.len());
 
-        Ok(Schema {
+        Schema {
             child_info,
             hash_bytes,
             descendant_object_ids,
@@ -324,6 +324,6 @@ impl<'a> Schema<'a> {
             triangle,
             vertex_index,
             texture_pixels,
-        })
+        }
     }
 }
