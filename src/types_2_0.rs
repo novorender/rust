@@ -281,7 +281,7 @@ pub struct SubMesh<'a> {
 
     ///Vertices are local to each sub-mesh.
     #[soa_range(VertexRange)]
-    pub vertices: &'a [Vertex],
+    pub vertices: VertexSlice<'a>,
 
     /// Triangle vertex index triplets, or line index pairs, if any, are 16-bit and relative to the local vertex range.
     #[soa_range(VertexIndexRange)]
