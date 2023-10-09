@@ -7,17 +7,18 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use core::{mem::size_of, mem, ffi::c_void};
+use parser::Version;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-pub mod parser_2_1;
+pub mod parser;
 pub mod parser_2_0;
-pub mod reader_2_0;
-pub mod reader_2_1;
+pub mod parser_2_1;
 pub mod types_2_1;
 pub mod types_2_0;
 pub mod thin_slice;
 pub mod range;
+pub mod types;
 
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
@@ -106,7 +107,6 @@ primitive_function_impl!(fill_to_interleaved_array, f64, f64);
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Schema{
     _data: Vec<u8>,
-    version: &'static str,
     schema: *mut c_void,
 }
 
@@ -116,39 +116,26 @@ pub struct ChildVec(usize, usize);
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Schema {
     pub fn parse_2_0(data: Vec<u8>) -> Schema {
-        let schema = types_2_0::Schema::parse(&data);
+        let schema = parser::Schema::parse(&data, Version::_2_0);
         Schema {
-            version: "2.0",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
         }
     }
 
     pub fn parse_2_1(data: Vec<u8>) -> Schema {
-        let schema = types_2_1::Schema::parse(&data);
+        let schema = parser::Schema::parse(&data, Version::_2_1);
         Schema {
-            version: "2.1",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
         }
     }
 
-    pub fn children(&self, separate_positions_buffer: bool) -> ChildVec {
-        match self.version {
-            "2.0" => {
-                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
-                let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
-                let children = schema.children(separate_positions_buffer, |_| true).collect::<Vec<_>>();
-                ChildVec(children.as_ptr() as usize, children.len())
-            }
-            "2.1" => {
-                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
-                let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
-                let children = schema.children(separate_positions_buffer, |_| true).collect::<Vec<_>>();
-                ChildVec(children.as_ptr() as usize, children.len())
-            }
-            _ => todo!()
-        }
+    pub fn children(&self) -> ChildVec {
+        // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+        let schema = unsafe{ &*(self.schema as *mut parser::Schema) };
+        let children = schema.children(|_| true);
+        ChildVec(children.as_ptr() as usize, children.len())
     }
 }
 
@@ -156,10 +143,6 @@ impl Schema {
 impl Drop for Schema {
     fn drop(&mut self) {
         // SAFETY: schema is put in a `Box` when created in `Schema::parse`
-        match self.version {
-            "2.0" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_0::Schema) }),
-            "2.1" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_1::Schema) }),
-            _ => todo!()
-        }
+        mem::drop(unsafe{ Box::from_raw(self.schema as *mut parser::Schema) })
     }
 }

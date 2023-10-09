@@ -29,23 +29,30 @@ mod benches {
     #[bench]
     fn parse(b: &mut test::Bencher) {
         use std::io::Read;
+        use wasm_parser::parser::{Version, Schema};
+
         let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
-        let mut schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
+        let mut schema = Schema::parse(&data, Version::_2_1);
         b.iter(|| {
-            schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
+            schema = Schema::parse(&data, Version::_2_1);
         });
 
-        for p in unsafe{ schema.sub_mesh_projection.primitive_type.as_slice(schema.sub_mesh_projection.len) } {
+        let sub_mesh_projection = match &schema {
+            Schema::Schema2_1(schema) => &schema.sub_mesh_projection,
+            _ => unreachable!()
+        };
+
+        for p in sub_mesh_projection.primitive_type() {
             assert!((*p as u8) < 7);
         }
-        for p in unsafe{ schema.sub_mesh_projection.attributes.as_slice(schema.sub_mesh_projection.len) } {
+        for p in sub_mesh_projection.attributes() {
             let mut p = *p;
-            p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::NORMAL);
-            p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::COLOR);
-            p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::TEX_COORD);
-            p.remove(wasm_parser::types_2_1::OptionalVertexAttribute::PROJECTED_POS);
+            p.remove(wasm_parser::types::OptionalVertexAttribute::NORMAL);
+            p.remove(wasm_parser::types::OptionalVertexAttribute::COLOR);
+            p.remove(wasm_parser::types::OptionalVertexAttribute::TEX_COORD);
+            p.remove(wasm_parser::types::OptionalVertexAttribute::PROJECTED_POS);
             assert!(p.is_empty());
         }
     }
@@ -55,12 +62,14 @@ mod benches {
     #[bench]
     fn children(b: &mut test::Bencher) {
         use std::io::Read;
+        use wasm_parser::parser::{Version, Schema};
+
         let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
-        let schema = wasm_parser::types_2_1::Schema::parse(&data).unwrap();
+        let mut schema = wasm_parser::parser::Schema::parse(&data, Version::_2_1);
         b.iter(|| {
-            let _ = schema.children(true, |_| true).collect::<Vec<_>>();
+            let _ = schema.children(|_| true);
         });
     }
 }
