@@ -98,28 +98,6 @@ pub struct Float3 {
     pub z: f32
 }
 
-impl std::ops::Add for Float3 {
-    type Output = Float3;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Float3 {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-            z: self.z + rhs.z,
-        }
-    }
-}
-
-impl From<Double3> for Float3 {
-    fn from(value: Double3) -> Self {
-        Float3 {
-            x: value.x as f32,
-            y: value.y as f32,
-            z: value.z as f32,
-        }
-    }
-}
-
 #[derive(Clone, Copy, StructOfArray)]
 pub struct Double3 {
     pub x: f64,

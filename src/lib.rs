@@ -13,7 +13,7 @@ use wasm_bindgen::prelude::*;
 pub mod parser_2_1;
 pub mod parser_2_0;
 pub mod reader_2_0;
-pub mod utils_2_1;
+pub mod reader_2_1;
 pub mod types_2_1;
 pub mod types_2_0;
 pub mod thin_slice;

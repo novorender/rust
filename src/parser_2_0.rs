@@ -49,8 +49,8 @@ impl<T> CheckedBitPattern for T {}
 use bytemuck::{Pod, CheckedBitPattern};
 
 pub struct Reader<'a> {
-    pub(crate) data: &'a [u8],
-    pub(crate) next: usize
+    data: &'a [u8],
+    next: usize
 }
 
 impl<'a> Reader<'a> {
@@ -109,6 +109,28 @@ impl<'a> Reader<'a> {
 
     pub fn read_range<T: Pod + 'a>(&mut self, len: u32) -> RangeSlice<'a, T> {
         RangeSlice{ start: self.read_slice(len), count: self.read_slice(len) }
+    }
+}
+
+impl std::ops::Add for Float3 {
+    type Output = Float3;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Float3 {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+}
+
+impl From<Double3> for Float3 {
+    fn from(value: Double3) -> Self {
+        Float3 {
+            x: value.x as f32,
+            y: value.y as f32,
+            z: value.z as f32,
+        }
     }
 }
 
