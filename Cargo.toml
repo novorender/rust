@@ -18,7 +18,6 @@ paste = "1.0.14"
 wasm-parser-derive = { path = "wasm-parser-derive" }
 bitflags = { version = "2.4.0", features = ["serde", "bytemuck"] }
 half = { version = "2.3.1", features = ["bytemuck", "serde"] }
-anyhow = "1.0.75"
 bytemuck = { version = "1.14.0", features = [ "derive" ] }
 wasm-bindgen = { version = "0.2.87", features = [] }
 wee_alloc = { version = "0.4.5", optional = true }
@@ -44,6 +43,7 @@ web-sys = { version = "0.3.64", features = [
   'Performance',
 ] }
 reqwest = { version = "0.11", features = ["blocking"] }
+anyhow = "1.0.75"
 
 [profile.release]
 lto =  true
