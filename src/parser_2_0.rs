@@ -1,4 +1,5 @@
 use crate::types_2_0::*;
+use crate::types::*;
 use crate::parser::Reader;
 
 

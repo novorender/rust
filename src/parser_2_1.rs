@@ -1,4 +1,5 @@
 use crate::types_2_1::*;
+use crate::types::*;
 use crate::parser::Reader;
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]

@@ -7,8 +7,7 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use core::{mem::size_of, mem, ffi::c_void};
-use parser::Version;
-#[cfg(target_family = "wasm")]
+pub use parser::{Version, Child};
 use wasm_bindgen::prelude::*;
 
 pub mod parser;
@@ -104,16 +103,16 @@ primitive_function_impl!(fill_to_interleaved_array, i32, i32);
 primitive_function_impl!(fill_to_interleaved_array, f32, f32);
 primitive_function_impl!(fill_to_interleaved_array, f64, f64);
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[wasm_bindgen]
 pub struct Schema{
     _data: Vec<u8>,
     schema: *mut c_void,
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-pub struct ChildVec(usize, usize);
+#[wasm_bindgen]
+pub struct ChildVec(pub usize, pub usize);
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[wasm_bindgen]
 impl Schema {
     pub fn parse_2_0(data: Vec<u8>) -> Schema {
         let schema = parser::Schema::parse(&data, Version::_2_0);
@@ -131,11 +130,12 @@ impl Schema {
         }
     }
 
-    pub fn children(&self) -> ChildVec {
+    pub fn children(&self) -> js_sys::Array {
         // SAFETY: schema is put in a `Box` when created in `Schema::parse`
         let schema = unsafe{ &*(self.schema as *mut parser::Schema) };
         let children = schema.children(|_| true);
-        ChildVec(children.as_ptr() as usize, children.len())
+        // ChildVec(children.as_ptr() as usize, children.len())
+        children
     }
 }
 

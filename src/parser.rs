@@ -1,6 +1,8 @@
-use core::mem::{transmute, size_of, align_of};
+use core::mem::{size_of, align_of};
 
 use half::f16;
+use js_sys::Array;
+use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::thin_slice::ThinSlice;
@@ -200,20 +202,21 @@ fn compute_vertex_offsets_(attributes: impl IntoIterator<Item = Attribute>) -> O
     offsets
 }
 
-fn compute_vertex_offsets(
-    attributes: OptionalVertexAttribute,
-    num_deviations: u8,
-    has_materials: bool,
-    has_object_ids: bool) -> Offsets
-{
-    compute_vertex_offsets_(attributes.into_iter()
-        .map(|attribute| attribute.into())
-        .chain(Some(Attribute::Position))
-        .chain((num_deviations > 0).then_some(Attribute::Deviations))
-        .chain(has_materials.then_some(Attribute::MaterialIndex))
-        .chain(has_object_ids.then_some(Attribute::ObjectId))
-    )
-}
+// All attributes and position, for non separate position buffer
+// fn compute_vertex_offsets(
+//     attributes: OptionalVertexAttribute,
+//     num_deviations: u8,
+//     has_materials: bool,
+//     has_object_ids: bool) -> Offsets
+// {
+//     compute_vertex_offsets_(attributes.into_iter()
+//         .map(|attribute| attribute.into())
+//         .chain(Some(Attribute::Position))
+//         .chain((num_deviations > 0).then_some(Attribute::Deviations))
+//         .chain(has_materials.then_some(Attribute::MaterialIndex))
+//         .chain(has_object_ids.then_some(Attribute::ObjectId))
+//     )
+// }
 
 fn compute_vertex_position_offsets() -> Offsets {
     compute_vertex_offsets_(Some(Attribute::Position))
@@ -346,73 +349,27 @@ fn test_to_hex() {
     assert_eq!(to_hex(&[1, 2, 15, 3]), "01020F03")
 }
 
-
-// TODO: Using unions by now but the usage is convoluted, needs unsafe to access...
-// better move the common types to types module instead of auto generated from schema?
-#[derive(Clone, Copy)]
-pub union Double3 {
-    _2_0: types_2_0::Double3,
-    _2_1: types_2_1::Double3,
-}
-
-#[derive(Clone, Copy)]
-pub union Float3 {
-    _2_0: types_2_0::Float3,
-    _2_1: types_2_1::Float3,
-}
-
-impl std::ops::Add for Float3 {
-    type Output = Float3;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Float3 { _2_0: types_2_0::Float3 {
-            x: unsafe{ self._2_0.x + rhs._2_0.x },
-            y: unsafe{ self._2_0.y + rhs._2_0.y },
-            z: unsafe{ self._2_0.z + rhs._2_0.z },
-        }}
-    }
-}
-
-impl From<Double3> for Float3 {
-    fn from(value: Double3) -> Self {
-        Float3 { _2_0: types_2_0::Float3 {
-            x: unsafe{ value._2_0.x as f32 },
-            y: unsafe{ value._2_0.y as f32 },
-            z: unsafe{ value._2_0.z as f32 },
-        }}
-    }
-}
-
-
-pub struct AABB {
-    min: Float3,
-    max: Float3,
-}
-
-pub struct BoundingSphere {
-    origo: Float3,
-    radius: f32,
-}
-
-pub struct Bounds {
-    _box: AABB,
-    sphere: BoundingSphere,
-}
-
 // End union types
-
+#[wasm_bindgen]
 pub struct Child {
-    pub id: String,
+    id: String,
     pub child_index: u8,
     pub child_mask: u32,
     pub tolerance: i8,
     pub byte_size: u32,
-    pub offset: Double3,
+    pub offset: Float3,
     pub scale: f32,
     pub bounds: Bounds,
     pub primitives: usize,
     pub primitives_delta: usize,
     pub gpu_bytes: usize,
+}
+
+#[wasm_bindgen]
+impl Child {
+    pub fn id(&self) -> String {
+        self.id.clone()
+    }
 }
 
 #[wasm_bindgen]
@@ -442,7 +399,7 @@ impl<'a> Schema<'a> {
         }
     }
 
-    pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> Vec<Child> {
+    pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> Array {
         let parse_child_info = |
             hash: &[types_2_1::HashBytes],
             child_index: u8,
@@ -478,7 +435,7 @@ impl<'a> Schema<'a> {
                 child_mask: child_mask,
                 tolerance: tolerance,
                 byte_size: total_byte_size,
-                offset,
+                offset: f32_offset,
                 scale,
                 bounds,
                 primitives,
@@ -496,11 +453,13 @@ impl<'a> Schema<'a> {
                     child_info.child_mask,
                     child_info.tolerance,
                     child_info.total_byte_size,
-                    Double3{ _2_0: child_info.offset },
+                    child_info.offset,
                     child_info.scale,
-                    unsafe{ transmute(&child_info.bounds) },
+                    &child_info.bounds,
                     SubMeshProjectionSlice::_2_0(&child_info.sub_meshes),
-                )).collect::<Vec<_>>(),
+                ))
+                .map(JsValue::from)
+                .collect(),
 
             Self::Schema2_1(schema) => schema.child_info
                 .iter(schema.hash_bytes, schema.sub_mesh_projection.clone(), schema.descendant_object_ids)
@@ -510,11 +469,13 @@ impl<'a> Schema<'a> {
                     child_info.child_mask,
                     child_info.tolerance,
                     child_info.total_byte_size,
-                    Double3{ _2_1: child_info.offset },
+                    child_info.offset,
                     child_info.scale,
-                    unsafe{ transmute(&child_info.bounds) },
+                    &child_info.bounds,
                     SubMeshProjectionSlice::_2_1(&child_info.sub_meshes),
-                )).collect::<Vec<_>>(),
+                ))
+                .map(JsValue::from)
+                .collect(),
         }
     }
 }
