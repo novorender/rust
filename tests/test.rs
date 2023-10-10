@@ -51,7 +51,7 @@ fn test_parser() -> anyhow::Result<()>{
     }
 
     let _children = schema
-        .children(true, |_| true)
+        .children(|_| true)
         .collect::<Vec<_>>();
 
     // TODO: test something about the children
@@ -105,7 +105,7 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
 
     performance.mark("start children")?;
     let _children = schema
-        .children(true, |_| true)
+        .children(|_| true)
         .collect::<Vec<_>>();
     performance.mark("end children")?;
     performance.measure_with_start_mark_and_end_mark("children", "start children", "end children")?;

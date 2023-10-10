@@ -1,5 +1,6 @@
 use bitflags::bitflags;
 use half::f16;
+use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_parser_derive::StructOfArray;
 
 use crate::thin_slice::ThinSlice;
@@ -11,6 +12,7 @@ use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 #[derive(Clone, Copy)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
+#[wasm_bindgen]
 pub enum PrimitiveType {
     Points = 0,
     Lines = 1,
@@ -25,6 +27,7 @@ pub enum PrimitiveType {
 #[derive(Clone, Copy)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
+#[wasm_bindgen]
 pub enum MaterialType {
     Opaque = 0,
     OpaqueDoubleSided = 1,
@@ -37,6 +40,7 @@ pub enum MaterialType {
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature= "checked_types", derive(Pod, Zeroable))]
 #[cfg_attr(feature= "checked_types", repr(transparent))]
+#[wasm_bindgen]
 pub struct OptionalVertexAttribute(u8);
 
 bitflags! {
@@ -52,11 +56,13 @@ bitflags! {
 #[derive(Clone, Copy)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
+#[wasm_bindgen]
 pub enum TextureSemantic {
     BaseColor = 0,
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct RgbaU8 {
     pub red: u8,
     pub green: u8,
@@ -78,6 +84,7 @@ pub struct Half3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Int16_3 {
     pub x: i16,
     pub y: i16,
@@ -85,6 +92,7 @@ pub struct Int16_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Int8_3 {
     pub x: i8,
     pub y: i8,
@@ -92,6 +100,7 @@ pub struct Int8_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Float3 {
     pub x: f32,
     pub y: f32,
@@ -99,6 +108,7 @@ pub struct Float3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Double3 {
     pub x: f64,
     pub y: f64,
@@ -107,6 +117,7 @@ pub struct Double3 {
 
 /// 3x3 row major matrix
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Float3x3 {
     pub e00: f32,
     pub e01: f32,
@@ -121,6 +132,7 @@ pub struct Float3x3 {
 
 /// Axis aligned bounding box.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct AABB {
     #[soa_nested]
     pub min: Float3,
@@ -130,6 +142,7 @@ pub struct AABB {
 
 /// Bounding sphere.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct BoundingSphere {
     #[soa_nested]
     pub origo: Float3,
@@ -138,6 +151,7 @@ pub struct BoundingSphere {
 
 /// Node bounding volume.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Bounds {
     #[soa_nested]
     pub _box: AABB,

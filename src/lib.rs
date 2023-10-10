@@ -7,17 +7,18 @@
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use core::{mem::size_of, mem, ffi::c_void};
+use js_sys::Array;
+use wasm_bindgen::JsValue;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-pub mod parser_2_1;
-pub mod parser_2_0;
 pub mod reader_2_0;
 pub mod reader_2_1;
 pub mod types_2_1;
 pub mod types_2_0;
 pub mod thin_slice;
 pub mod range;
+pub mod parser;
 
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
@@ -133,19 +134,21 @@ impl Schema {
         }
     }
 
-    pub fn children(&self, separate_positions_buffer: bool) -> ChildVec {
+    pub fn children(&self) -> Array {
         match self.version {
             "2.0" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
-                let children = schema.children(separate_positions_buffer, |_| true).collect::<Vec<_>>();
-                ChildVec(children.as_ptr() as usize, children.len())
+                schema.children(|_| true)
+                    .map(JsValue::from)
+                    .collect()
             }
             "2.1" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
-                let children = schema.children(separate_positions_buffer, |_| true).collect::<Vec<_>>();
-                ChildVec(children.as_ptr() as usize, children.len())
+                schema.children(|_| true)
+                    .map(JsValue::from)
+                    .collect()
             }
             _ => todo!()
         }
