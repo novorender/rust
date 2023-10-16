@@ -45,7 +45,7 @@ impl<'a> Field<'a> {
     }
 }
 
-#[proc_macro_derive(StructOfArray, attributes(soa_len, soa_nested, soa_range, soa_range_index))]
+#[proc_macro_derive(StructOfArray, attributes(soa_len, soa_nested, soa_range))]
 pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // TODO: function to detect wasm-parser or other
     let crate_name = Ident::new("crate", Span::call_site());
@@ -126,7 +126,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         GenericArgument::Type(ty) => if is_range {
                             return Err(syn::Error::new(
                                 field.ident.as_ref().unwrap().span(),
-                                "Nested range fields are not supported yet"
+                                "Optional range fields are not supported yet"
                             ))
                         }else if is_primitive {
                             FieldType::OptionalPrimitive(ty)

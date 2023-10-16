@@ -9,7 +9,7 @@ use crate::impl_range;
 use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 
 /// Type of GL render primitive.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 #[wasm_bindgen]
@@ -24,7 +24,7 @@ pub enum PrimitiveType {
 }
 
 /// Type of material.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 #[wasm_bindgen]
@@ -37,7 +37,7 @@ pub enum MaterialType {
 
 
 /// Bitwise flags for which vertex attributes will be used in geometry.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(Pod, Zeroable))]
 #[cfg_attr(feature= "checked_types", repr(transparent))]
 #[wasm_bindgen]
@@ -53,7 +53,7 @@ bitflags! {
 }
 
 /// Texture semantic/purpose.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
 #[wasm_bindgen]
@@ -247,7 +247,6 @@ pub struct Triangle {
 /// Mesh Textures
 #[derive(Clone, StructOfArray)]
 #[soa_len]
-#[soa_range_index(TextureInfoRange)]
 pub struct TextureInfo<'a> {
     pub semantic: TextureSemantic,
     #[soa_nested]
@@ -294,7 +293,7 @@ pub struct SubMesh<'a> {
     pub textures: TextureInfoSlice<'a>,
 }
 
-pub type VertexIndex = u32;
+pub type VertexIndex = u16;
 pub type HashBytes = u8;
 pub type TexturePixels = u8;
 /// Information about descendant object ids, which may be present for branches with few object ids,
@@ -346,6 +345,6 @@ pub struct Schema<'a> {
     pub vertex: VertexSlice<'a>,
     pub triangle: TriangleSlice<'a>,
     /// Mesh vertex indices, relative to each draw call, hence 16 bit.
-    pub vertex_index: Option<ThinSlice<'a, u16>>,
+    pub vertex_index: Option<ThinSlice<'a, VertexIndex>>,
     pub texture_pixels: ThinSlice<'a, TexturePixels>,
 }
