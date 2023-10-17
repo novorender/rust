@@ -63,4 +63,21 @@ mod benches {
             let _ = schema.children(|_| true).collect::<Vec<_>>();
         });
     }
+
+
+    #[bench]
+    fn geometry(b: &mut test::Bencher) {
+        use std::io::Read;
+        let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        let schema = wasm_parser::types_2_1::Schema::parse(&data);
+        b.iter(|| {
+            let _ = schema.geometry(
+                false,
+                wasm_parser::parser::Highlights{ indices: &[] },
+                |_| true
+            );
+        });
+    }
 }

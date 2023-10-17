@@ -25,7 +25,7 @@ fn test_fill_interleaved() {
 #[cfg(not(target_family = "wasm"))]
 #[test]
 fn test_parser() -> anyhow::Result<()>{
-    use wasm_parser::types_2_0::{Schema, OptionalVertexAttribute};
+    use wasm_parser::{types_2_0::{Schema, OptionalVertexAttribute}, parser::Highlights};
 
     let response = reqwest::blocking::get("https://api.novorender.com/assets/scenes/18f56c98c1e748feb8369a6d32fde9ef/webgl2_bin/1CC58DC2F443F89F7021A675640029D7")?;
     if !response.status().is_success(){
@@ -55,6 +55,14 @@ fn test_parser() -> anyhow::Result<()>{
         .collect::<Vec<_>>();
 
     // TODO: test something about the children
+
+    let (sub_meshes, textures) = schema.geometry(
+        false,
+        Highlights{ indices: &[] },
+        |_| true
+    );
+
+    // TODO: test something about the sub_meshes and textures
 
     Ok(())
 }
