@@ -1,11 +1,11 @@
 
 use core::mem::{size_of, align_of};
-use crate::ktx::*;
 
 use half::f16;
 
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
+use crate::ktx::*;
 use wasm_bindgen::prelude::*;
 
 pub struct Optionals<'a, const NUM_OPTIONALS: usize> {
