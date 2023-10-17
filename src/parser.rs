@@ -321,6 +321,32 @@ pub enum Indices {
     NumIndices(u32),
 }
 
+fn copy_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: &[T], byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for (dst, src) in dst[offset..].iter_mut().step_by(stride).zip(&src[begin..end]) {
+        *dst = *src
+    }
+}
+
+
+fn fill_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: T, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    let end = (offset + stride * (end - begin)).min(dst.len());
+
+    for dst in dst[offset..end].iter_mut().step_by(stride) {
+        *dst = src;
+    }
+}
 // use crate::types_2_0::*;
 // use crate::reader_2_0::*;
 // use _2_0::*;
@@ -848,7 +874,7 @@ macro_rules! impl_parser {
                                     let offset = attrib_offsets[attrib] as usize + c * bytes_per_element;
                                     match attrib {
                                         Attribute::MaterialIndex =>
-                                            crate::fill_to_interleaved_array(
+                                            super::fill_to_interleaved_array(
                                                 bytemuck::cast_slice_mut(dst),
                                                 sub_mesh.material_index,
                                                 offset,
@@ -857,7 +883,7 @@ macro_rules! impl_parser {
                                                 sub_mesh.vertices.len as usize,
                                             ),
                                         Attribute::ObjectId =>
-                                            crate::fill_to_interleaved_array(
+                                            super::fill_to_interleaved_array(
                                                 bytemuck::cast_slice_mut(dst),
                                                 sub_mesh.object_id,
                                                 offset,
@@ -908,7 +934,7 @@ macro_rules! impl_parser {
                                     .fill(sub_mesh.object_id);
                             }
 
-                            crate::copy_to_interleaved_array::<i16>(
+                            super::copy_to_interleaved_array::<i16>(
                                 bytemuck::cast_slice_mut(&mut position_buffer),
                                 unsafe{ sub_mesh.vertices.position.x.as_slice(sub_mesh.vertices.len) },
                                 vertex_offset * position_stride + 0,
@@ -917,7 +943,7 @@ macro_rules! impl_parser {
                                 sub_mesh.vertices.len as usize,
                             );
 
-                            crate::copy_to_interleaved_array::<i16>(
+                            super::copy_to_interleaved_array::<i16>(
                                 bytemuck::cast_slice_mut(&mut position_buffer),
                                 unsafe{ sub_mesh.vertices.position.y.as_slice(sub_mesh.vertices.len) },
                                 vertex_offset * position_stride + 2,
@@ -926,7 +952,7 @@ macro_rules! impl_parser {
                                 sub_mesh.vertices.len as usize,
                             );
 
-                            crate::copy_to_interleaved_array::<i16>(
+                            super::copy_to_interleaved_array::<i16>(
                                 bytemuck::cast_slice_mut(&mut position_buffer),
                                 unsafe{ sub_mesh.vertices.position.z.as_slice(sub_mesh.vertices.len) },
                                 vertex_offset * position_stride + 4,
