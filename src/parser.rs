@@ -572,7 +572,7 @@ macro_rules! impl_parser {
             pub num_triangles: u32,
             object_ranges: Option<Vec<MeshObjectRange>>,
             vertex_attributes: Option<VertexAttributes>,
-            vertex_buffers: Option<Vec<Vec<u8>>>,
+            vertex_buffers: Vec<Vec<u8>>,
             index_buffer: Option<Vec<u8>>,
             pub num_indices: Option<u32>,
             pub base_color_texture: Option<u32>,
@@ -594,19 +594,25 @@ macro_rules! impl_parser {
             }
 
             pub fn vertex_buffers(&mut self) -> Array {
-                self.vertex_buffers.take().unwrap().into_iter().map(|buffer| {
-                    let array = Uint8Array::new_with_length(buffer.len() as u32);
-                    array.copy_from(&buffer);
-                    array.buffer()
-                }).collect()
+                self.vertex_buffers.iter()
+                    .map(|buffer| unsafe { Uint8Array::view(buffer) })
+                    .collect()
             }
 
             pub fn draw_ranges(&mut self) -> Array {
                 self.draw_ranges.take().unwrap().into_iter().map(JsValue::from).collect()
             }
 
-            pub fn index_buffer(&self) -> Option<Uint8Array> {
-                self.index_buffer.as_ref().map(|buffer| unsafe{ Uint8Array::view(buffer) } )
+            pub fn index_buffer(&self) -> JsValue {
+                if let Some(buffer) = self.index_buffer.as_ref() {
+                    if self.num_vertices > u16::MAX as u32 {
+                        unsafe{ js_sys::Uint32Array::view(bytemuck::cast_slice(buffer)) }.into()
+                    }else{
+                        unsafe{ js_sys::Uint16Array::view(bytemuck::cast_slice(buffer)) }.into()
+                    }
+                }else{
+                    JsValue::null()
+                }
             }
         }
 
@@ -1148,7 +1154,7 @@ macro_rules! impl_parser {
                         num_triangles: num_triangles as u32,
                         object_ranges: Some(object_ranges),
                         vertex_attributes: Some(vertex_attributes),
-                        vertex_buffers: Some(vertex_buffers),
+                        vertex_buffers,
                         index_buffer,
                         num_indices,
                         base_color_texture,
