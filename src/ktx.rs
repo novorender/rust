@@ -3,13 +3,16 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct TextureParameters {
-    kind: &'static str,
-    internal_format: &'static str,
+    #[wasm_bindgen(skip)]
+    pub kind: &'static str,
+    #[wasm_bindgen(skip)]
+    pub internal_format: &'static str,
     pub ty: u32,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
-    image_data: Vec<u8>,
+    #[wasm_bindgen(skip)]
+    pub image_data: Vec<u8>,
 }
 
 pub fn parse_ktx(ktx: &[u8]) -> TextureParameters {

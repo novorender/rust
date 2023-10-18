@@ -253,13 +253,36 @@ pub struct DrawRange {
 }
 
 #[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "Array<DrawRange>")]
+    pub type ArrayDrawRange;
+    #[wasm_bindgen(typescript_type = "Array<MeshObjectRange>")]
+    pub type ArrayObjectRange;
+    #[wasm_bindgen(typescript_type = "Array<Uint8Array>")]
+    pub type ArrayUint8Array;
+    #[wasm_bindgen(typescript_type = r#""POINTS" | "LINES" | "LINE_LOOP" | "LINE_STRIP" | "TRIANGLES" | "TRIANGLE_STRIP" | "TRIANGLE_FAN""#)]
+    pub type PrimitiveTypeStr;
+    #[wasm_bindgen(typescript_type = "ShaderAttributeType")]
+    pub type ShaderAttributeType;
+    #[wasm_bindgen(typescript_type = "ComponentType")]
+    pub type ComponentType;
+    #[wasm_bindgen(typescript_type = "1 | 2 | 3 | 4")]
+    pub type ComponentCount;
+    #[wasm_bindgen(typescript_type = "readonly number[]")]
+    pub type Float3x3AsArray;
+    #[wasm_bindgen(typescript_type = "TextureParams")]
+    pub type TextureParams;
+}
+
+#[wasm_bindgen]
 #[derive(Clone, Copy)]
 pub struct VertexAttribute {
-    kind: &'static str,
+    #[wasm_bindgen(skip)]
+    pub kind: &'static str,
     pub buffer: i8,
-    #[wasm_bindgen(js_name = componentCount)]
-    pub component_count: u8,
-    component_type: &'static str,
+    component_count: u8,
+    #[wasm_bindgen(skip)]
+    pub component_type: &'static str,
     pub normalized: bool,
     #[wasm_bindgen(js_name = byteOffset)]
     pub byte_offset: u32,
@@ -269,13 +292,24 @@ pub struct VertexAttribute {
 
 #[wasm_bindgen]
 impl VertexAttribute {
-    pub fn kind(&self) -> JsValue {
-        self.kind.into()
+    #[wasm_bindgen(getter)]
+    pub fn kind(&self) -> ShaderAttributeType {
+        let js_value: JsValue = self.kind.into();
+        js_value.into()
     }
 
     #[wasm_bindgen(js_name = componentType)]
-    pub fn component_type(&self) -> JsValue {
-        self.component_type.into()
+    #[wasm_bindgen(getter)]
+    pub fn component_type(&self) -> ComponentType {
+        let js_value: JsValue = self.component_type.into();
+        js_value.into()
+    }
+
+    #[wasm_bindgen(js_name = componentCount)]
+    #[wasm_bindgen(getter)]
+    pub fn component_count(&self) -> ComponentCount {
+        let js_value: JsValue = self.component_count.into();
+        js_value.into()
     }
 }
 
@@ -332,9 +366,11 @@ macro_rules! impl_parser {
         use crate::[<types $version>]::*;
         use crate::[<reader $version>]::*;
         use crate::parser::*;
-        use hashbrown::{HashMap, hash_map::Entry};
         use crate::thin_slice::ThinSliceIterator;
-        use js_sys::{Array, Uint8Array};
+        use crate::interleaved::*;
+
+        use hashbrown::{HashMap, hash_map::Entry};
+        use js_sys::Array;
         use wasm_bindgen::JsValue;
 
         impl std::ops::Add for Float3 {
@@ -567,52 +603,97 @@ macro_rules! impl_parser {
 
         #[wasm_bindgen(js_name = [<ReturnSubMesh $version>])]
         pub struct ReturnSubMesh {
+            #[wasm_bindgen(js_name = "materialType")]
             pub material_type: MaterialType,
-            primitive_type: PrimitiveType,
+            #[wasm_bindgen(skip)]
+            pub primitive_type: PrimitiveType,
+            #[wasm_bindgen(js_name = "numVertices")]
             pub num_vertices: u32,
+            #[wasm_bindgen(js_name = "numTriangles")]
             pub num_triangles: u32,
-            object_ranges: Option<Vec<MeshObjectRange>>,
-            vertex_attributes: Option<VertexAttributes>,
-            vertex_buffers: Vec<Vec<u8>>,
-            index_buffer: Option<Vec<u8>>,
-            pub num_indices: Option<u32>,
+            #[wasm_bindgen(skip)]
+            pub object_ranges: Option<Vec<MeshObjectRange>>,
+            #[wasm_bindgen(skip)]
+            pub vertex_attributes: Option<VertexAttributes>,
+            #[wasm_bindgen(skip)]
+            pub vertex_buffers: Vec<Vec<u8>>,
+            #[wasm_bindgen(skip)]
+            pub indices: Indices,
+            #[wasm_bindgen(js_name = "baseColorTexture")]
             pub base_color_texture: Option<u32>,
-            draw_ranges: Option<Vec<DrawRange>>,
+            #[wasm_bindgen(skip)]
+            pub draw_ranges: Option<Vec<DrawRange>>,
         }
 
         #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
         impl ReturnSubMesh {
-            pub fn primitive_type(&self) -> String {
-                format!("{:?}", self.primitive_type).to_ascii_uppercase()
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "primitiveType")]
+            pub fn primitive_type(&self) -> PrimitiveTypeStr {
+                let js_value: JsValue = format!("{:?}", self.primitive_type)
+                    .to_ascii_uppercase()
+                    .into();
+                js_value.into()
             }
 
-            pub fn object_ranges(&mut self) -> Array {
-                self.object_ranges.take().unwrap().into_iter().map(JsValue::from).collect()
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "objectRanges")]
+            pub fn object_ranges(&mut self) -> ArrayObjectRange {
+                let array: Array = self.object_ranges.take().unwrap()
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                let js_value: JsValue = array.into();
+                js_value.into()
             }
 
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "vertexAttributes")]
             pub fn vertex_attributes(&mut self) -> VertexAttributes {
                 self.vertex_attributes.take().unwrap()
             }
 
-            pub fn vertex_buffers(&mut self) -> Array {
-                self.vertex_buffers.iter()
-                    .map(|buffer| unsafe { Uint8Array::view(buffer) })
-                    .collect()
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "vertexBuffers")]
+            pub fn vertex_buffers(&mut self) -> ArrayUint8Array {
+                let array: Array = self.vertex_buffers.iter()
+                    .map(|buffer| {
+                        let typed_array = js_sys::Uint8Array::new_with_length(buffer.len() as u32);
+                        typed_array.copy_from(buffer);
+                        typed_array.buffer()
+                    })
+                    .collect();
+                let js_value: JsValue = array.into();
+                js_value.into()
             }
 
-            pub fn draw_ranges(&mut self) -> Array {
-                self.draw_ranges.take().unwrap().into_iter().map(JsValue::from).collect()
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "drawRanges")]
+            pub fn draw_ranges(&mut self) -> ArrayDrawRange {
+                let array: Array = self.draw_ranges.take().unwrap()
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                let js_value: JsValue = array.into();
+                js_value.into()
             }
 
-            pub fn index_buffer(&self) -> JsValue {
-                if let Some(buffer) = self.index_buffer.as_ref() {
-                    if self.num_vertices > u16::MAX as u32 {
-                        unsafe{ js_sys::Uint32Array::view(bytemuck::cast_slice(buffer)) }.into()
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "indices")]
+            pub fn indices(&self) -> JsValue {
+                match &self.indices {
+                    Indices::IndexBuffer(buffer) => if self.num_vertices > u16::MAX as u32 {
+                        let buffer: &[u32] = bytemuck::cast_slice(buffer);
+                        let typed_array = js_sys::Uint32Array::new_with_length(buffer.len() as u32);
+                        typed_array.copy_from(buffer);
+                        typed_array.into()
                     }else{
-                        unsafe{ js_sys::Uint16Array::view(bytemuck::cast_slice(buffer)) }.into()
-                    }
-                }else{
-                    JsValue::null()
+                        let buffer: &[u16] = bytemuck::cast_slice(buffer);
+                        let typed_array = js_sys::Uint16Array::new_with_length(buffer.len() as u32);
+                        typed_array.copy_from(buffer);
+                        typed_array.into()
+                    },
+                    Indices::NumIndices(num_indices) => (*num_indices).into(),
                 }
             }
         }
@@ -627,9 +708,11 @@ macro_rules! impl_parser {
 
         #[wasm_bindgen(js_class = [<Texture $version>])]
         impl Texture {
-            pub fn parameters(&self) -> TextureParameters {
-                // TODO: avoid this, maybe just call js parseKtx
-                self.params.clone()
+            #[wasm_bindgen(getter)]
+            pub fn params(&self) -> TextureParams {
+                // TODO: Is this correct? also try to avoid clone
+                let js_value: JsValue = self.params.clone().into();
+                js_value.into()
             }
         }
 
@@ -1137,17 +1220,6 @@ macro_rules! impl_parser {
 
                     object_ranges.sort_by_key(|obj_range| obj_range.object_id);
 
-                    let mut index_buffer = None;
-                    let mut num_indices = None;
-                    match indices {
-                        Indices::IndexBuffer(buffer) => {
-                            index_buffer = Some(buffer);
-                        }
-                        Indices::NumIndices(num) => {
-                            num_indices = Some(num);
-                        }
-                    };
-
                     sub_meshes.push(ReturnSubMesh{
                         material_type: *material_type,
                         primitive_type: *primitive_type,
@@ -1156,8 +1228,7 @@ macro_rules! impl_parser {
                         object_ranges: Some(object_ranges),
                         vertex_attributes: Some(vertex_attributes),
                         vertex_buffers,
-                        index_buffer,
-                        num_indices,
+                        indices,
                         base_color_texture,
                         draw_ranges: Some(draw_ranges),
                     })
@@ -1224,7 +1295,7 @@ pub mod _2_1 {
 
     impl_parser!(_2_1, Child, descendant_object_ids);
 
-    #[wasm_bindgen]
+    #[wasm_bindgen(js_name = Child_2_1)]
     pub struct Child {
         id: String,
         pub child_index: u8,
@@ -1240,7 +1311,7 @@ pub mod _2_1 {
         descendant_object_ids: Uint32Array,
     }
 
-    #[wasm_bindgen]
+    #[wasm_bindgen(js_class = Child_2_1)]
     impl Child {
         pub fn id(&self) -> String {
             self.id.clone()

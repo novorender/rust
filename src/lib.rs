@@ -54,7 +54,12 @@ pub struct Schema{
 }
 
 #[wasm_bindgen]
-pub struct ChildVec(usize, usize);
+extern "C" {
+    #[wasm_bindgen(typescript_type = "{subMeshes: Array<ReturnSubMesh_2_0 | ReturnSubMesh_2_1>, textures: Array<Texture_2_0 | Texture_2_1>}")]
+    pub type NodeGeometry;
+    #[wasm_bindgen(typescript_type = "Array<Child_2_0> | Array<Child_2_1>")]
+    pub type ArrayChild;
+}
 
 #[wasm_bindgen]
 impl Schema {
@@ -76,8 +81,8 @@ impl Schema {
         }
     }
 
-    pub fn children(&self) -> Array {
-        match self.version {
+    pub fn children(&self) -> ArrayChild {
+        let array: Array = match self.version {
             "2.0" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
@@ -93,12 +98,34 @@ impl Schema {
                     .collect()
             }
             _ => todo!()
-        }
+        };
+        let js_value: JsValue = array.into();
+        js_value.into()
     }
 
     // Array<Array> contains 2 Arrays, first is the vertex buffer, the other the textures
-    pub fn geometry(&self, enable_outlines: bool) -> Array {
-        match self.version {
+    pub fn geometry(&self, enable_outlines: bool) -> NodeGeometry {
+        #[wasm_bindgen]
+        pub struct InnerNodeGeometry {
+            sub_meshes: Array,
+            textures: Array,
+        }
+
+        #[wasm_bindgen]
+        impl InnerNodeGeometry {
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "subMeshes")]
+            pub fn sub_meshes(&self) -> Array {
+                self.sub_meshes.clone()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn textures(&self) -> Array {
+                self.textures.clone()
+            }
+        }
+
+        let js_value: JsValue = match self.version {
             "2.0" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
@@ -115,7 +142,10 @@ impl Schema {
                     .into_iter()
                     .map(JsValue::from)
                     .collect();
-                [sub_meshes, textures].into_iter().collect()
+                InnerNodeGeometry{
+                    sub_meshes,
+                    textures
+                }.into()
             }
             "2.1" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
@@ -133,10 +163,14 @@ impl Schema {
                     .into_iter()
                     .map(JsValue::from)
                     .collect();
-                [sub_meshes, textures].into_iter().collect()
+                InnerNodeGeometry{
+                    sub_meshes,
+                    textures
+                }.into()
             }
             _ => todo!()
-        }
+        };
+        js_value.into()
     }
 }
 
