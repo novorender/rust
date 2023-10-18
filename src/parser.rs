@@ -451,12 +451,12 @@ macro_rules! impl_parser {
                         ) as usize;
                         total_num_indices += num_indices as usize;
                         total_num_vertices += num_vertices as usize;
-                        total_num_vertex_bytes += num_bytes_per_vertex as usize;
+                        total_num_vertex_bytes += num_vertices as usize * num_bytes_per_vertex as usize;
                         total_texture_bytes += num_texture_bytes as usize;
                     }
                 }
 
-                let idx_stride = if total_num_vertices < u32::MAX as usize { 2 } else { 4 };
+                let idx_stride = if total_num_vertices < u16::MAX as usize { 2 } else { 4 };
                 let gpu_bytes = total_texture_bytes + total_num_vertex_bytes + total_num_indices * idx_stride;
                 AggregateProjections {
                     primitives,
