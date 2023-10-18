@@ -1107,7 +1107,7 @@ macro_rules! impl_parser {
 
                     let stride = vertex_stride as u32;
                     let deviations_kind = if *num_deviations == 0 || *num_deviations == 1 {
-                        "FLOAT".into()
+                        "FLOAT"
                     }else if *num_deviations == 3 {
                         "FLOAT_VEC3"
                     }else if *num_deviations == 4 {
