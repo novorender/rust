@@ -53,7 +53,7 @@ fn test_parser() -> anyhow::Result<()>{
 async fn test_parser_wasm() -> Result<(), JsValue> {
     use wasm_bindgen_futures::JsFuture;
     use web_sys::{Request, RequestInit, RequestMode, Response};
-    use wasm_parser::types_2_0::{Schema, OptionalVertexAttribute};
+    use wasm_parser::{types_2_0::{Schema, OptionalVertexAttribute}, parser::Highlights};
     use js_sys::Uint8Array;
     use wasm_bindgen::JsCast;
 
@@ -98,6 +98,12 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
         .collect::<Vec<_>>();
     performance.mark("end children")?;
     performance.measure_with_start_mark_and_end_mark("children", "start children", "end children")?;
+
+    let (_sub_meshes, _textures) = schema.geometry(
+        false,
+        Highlights{ indices: &[] },
+        |_| true
+    );
 
     // TODO: test something about the children
 
