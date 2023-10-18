@@ -25,7 +25,6 @@ half = { version = "2.3.1", features = ["bytemuck", "serde"] }
 bytemuck = { version = "1.14.0", features = [ "derive" ] }
 # bincode = "1"
 wasm-bindgen = { version = "0.2.87", features = [] }
-wee_alloc = { version = "0.4.5", optional = true }
 web-sys = { version = "0.3.64", features = ["console"], optional = true }
 js-sys = "0.3.64"
 hashbrown = "0.14.1"
