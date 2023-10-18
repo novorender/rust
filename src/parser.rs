@@ -2,6 +2,7 @@
 use core::mem::{size_of, align_of};
 
 use half::f16;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
@@ -225,58 +226,193 @@ pub struct Highlights<'a> {
     // mutex
 }
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "Array<DrawRange>")]
+    pub type ArrayDrawRange;
+    #[wasm_bindgen(typescript_type = "Array<MeshObjectRange>")]
+    pub type ArrayObjectRange;
+    #[wasm_bindgen(typescript_type = "Array<Uint8Array> | Array<ArrayBufferLike>")]
+    pub type VertexBuffers;
+    #[wasm_bindgen(typescript_type = r#""POINTS" | "LINES" | "LINE_LOOP" | "LINE_STRIP" | "TRIANGLES" | "TRIANGLE_STRIP" | "TRIANGLE_FAN""#)]
+    pub type PrimitiveTypeStr;
+    #[wasm_bindgen(typescript_type = "ShaderAttributeType")]
+    pub type ShaderAttributeType;
+    #[wasm_bindgen(typescript_type = r#""HALF_FLOAT" | "FLOAT" | "BYTE" | "SHORT" | "INT" | "UNSIGNED_BYTE" | "UNSIGNED_SHORT" | "UNSIGNED_INT""#)]
+    pub type ComponentType;
+    #[wasm_bindgen(typescript_type = "1 | 2 | 3 | 4")]
+    pub type ComponentCount;
+    #[wasm_bindgen(typescript_type = "readonly number[]")]
+    pub type Float3x3AsArray;
+    #[wasm_bindgen(typescript_type = "TextureParams")]
+    pub type TextureParams;
+    #[wasm_bindgen(typescript_type = "Uint16Array | Uint32Array | number")]
+    pub type JsIndices;
+    #[wasm_bindgen(typescript_type = "VertexAttribute | null")]
+    pub type NullableVertexAttribute;
+    #[wasm_bindgen(typescript_type = "number[]")]
+    pub type ArrayNumber;
+    #[wasm_bindgen(typescript_type = "readonly number[] | undefined")]
+    pub type OptionalNumberArray;
+    #[wasm_bindgen(typescript_type = "undefined")]
+    pub type Undefined;
+}
+
+#[wasm_bindgen]
 #[derive(Clone, Copy)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MeshObjectRange {
+    #[wasm_bindgen(js_name = objectId)]
     pub object_id: u32,
+    #[wasm_bindgen(js_name = beginVertex)]
     pub begin_vertex: usize,
+    #[wasm_bindgen(js_name = endVertex)]
     pub end_vertex: usize,
+    #[wasm_bindgen(js_name = beginTriangle)]
     pub begin_triangle: usize,
+    #[wasm_bindgen(js_name = endTriangle)]
     pub end_triangle: usize,
 }
 
+#[wasm_bindgen]
 #[derive(Clone, Copy)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DrawRange {
+    #[wasm_bindgen(js_name = childIndex)]
     pub child_index: u8,
+    #[wasm_bindgen(js_name = byteOffset)]
     pub byte_offset: usize,
     pub first: usize,
     pub count: usize,
 }
 
+#[wasm_bindgen]
 #[derive(Clone, Copy)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VertexAttribute {
+    #[wasm_bindgen(skip)]
     pub kind: &'static str,
     pub buffer: i8,
+    #[wasm_bindgen(skip)]
     pub component_count: u8,
+    #[wasm_bindgen(skip)]
     pub component_type: &'static str,
     pub normalized: bool,
+    #[wasm_bindgen(js_name = byteOffset)]
     pub byte_offset: u32,
+    #[wasm_bindgen(js_name = byteStride)]
     pub byte_stride: u32,
 }
 
+#[wasm_bindgen]
+impl VertexAttribute {
+    #[wasm_bindgen(getter)]
+    pub fn kind(&self) -> ShaderAttributeType {
+        unreachable!()
+    }
+
+    #[wasm_bindgen(getter, js_name = componentCount)]
+    pub fn component_count(&self) -> ComponentCount {
+        unreachable!()
+    }
+
+    #[wasm_bindgen(getter, js_name = componentType)]
+    pub fn component_type(&self) -> ComponentType {
+        unreachable!()
+    }
+}
+
+#[wasm_bindgen]
 #[derive(Clone)]
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VertexAttributes {
     pub position: VertexAttribute,
+    #[wasm_bindgen(skip)]
     pub normal: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub material: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub object_id: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub tex_coord: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub color: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub projected_pos: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub deviations: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub triangles0: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub triangles1: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub triangles2: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub triangles_obj_id: Option<VertexAttribute>,
+    #[wasm_bindgen(skip)]
     pub highlight: VertexAttribute,
+    #[wasm_bindgen(skip)]
     pub highlight_tri: VertexAttribute,
+}
+
+#[wasm_bindgen]
+impl VertexAttributes {
+    #[wasm_bindgen(getter)]
+    pub fn normal(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn material(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter, js_name = objectId)]
+    pub fn object_id(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter, js_name = texCoord)]
+    pub fn tex_coord(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn color(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter, js_name = projectedPos)]
+    pub fn projected_pos(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn deviations(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn triangles0(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn triangles1(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn triangles2(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter, js_name = trianglesObjId)]
+    pub fn triangles_obj_id(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter)]
+    pub fn highlight(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
+    #[wasm_bindgen(getter, js_name = highlightTri)]
+    pub fn highlight_tri(&self) -> NullableVertexAttribute {
+        unreachable!()
+    }
 }
 
 struct PossibleBuffers {
@@ -411,6 +547,31 @@ macro_rules! impl_parser {
             }
         }
 
+        #[wasm_bindgen(js_class = [<AABB $version>])]
+        impl AABB {
+            #[wasm_bindgen(getter)]
+            pub fn min(&self) -> Vec<f32> {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn max(&self) -> Vec<f32> {
+                unreachable!()
+            }
+        }
+
+        #[wasm_bindgen(js_class = [<BoundingSphere $version>])]
+        impl BoundingSphere {
+            #[wasm_bindgen(getter)]
+            pub fn center(&self) -> Vec<f32> {
+                unreachable!()
+            }
+            #[wasm_bindgen(setter)]
+            pub fn set_center(&mut self, _: &[f32]) {
+                unreachable!()
+            }
+        }
+
         // All attributes + position for non-separate position, not used anymore
         // fn compute_vertex_offsets(attributes: OptionalVertexAttribute, num_deviations: u8, has_materials: bool, has_object_ids: bool) -> Offsets {
         //     compute_vertex_offsets_(
@@ -539,8 +700,9 @@ macro_rules! impl_parser {
                     primitives_delta,
                     gpu_bytes,
                     $(
-                        $child_extra_fields: (!self.$child_extra_fields.is_empty())
-                            .then(|| bytemuck::cast_slice(self.$child_extra_fields)),
+                        // $child_extra_fields: (!self.$child_extra_fields.is_empty())
+                        //     .then(|| bytemuck::cast_slice(self.$child_extra_fields)),
+                        $child_extra_fields: if self.$child_extra_fields.is_empty() { None } else{ Some(self.$child_extra_fields.to_vec()) }
                     )*
                 }
             }
@@ -605,29 +767,99 @@ macro_rules! impl_parser {
             texture_range: TextureInfoRange,
         }
 
+        #[wasm_bindgen(js_name = [<ReturnSubMesh $version>])]
         #[derive(serde::Serialize)]
         #[serde(rename_all = "camelCase")]
         pub struct ReturnSubMesh {
+            #[wasm_bindgen(js_name = materialType)]
             pub material_type: u8,
-            primitive_type: PrimitiveType,
+            #[wasm_bindgen(skip)]
+            pub primitive_type: PrimitiveType,
+            #[wasm_bindgen(js_name = numVertices)]
             pub num_vertices: u32,
+            #[wasm_bindgen(js_name = numTriangles)]
             pub num_triangles: u32,
-            object_ranges: Vec<MeshObjectRange>,
-            vertex_attributes: VertexAttributes,
+            #[wasm_bindgen(skip)]
+            pub object_ranges: Vec<MeshObjectRange>,
+            #[wasm_bindgen(skip)]
+            pub vertex_attributes: VertexAttributes,
             #[serde(with = "serde_bytes_nested")]
-            vertex_buffers: Vec<Vec<u8>>,
-            indices: Indices,
+            #[wasm_bindgen(skip)]
+            pub vertex_buffers: Vec<Vec<u8>>,
+            #[wasm_bindgen(skip)]
+            pub indices: Indices,
+            #[wasm_bindgen(js_name = baseColorTexture)]
             pub base_color_texture: Option<u32>,
-            draw_ranges: Vec<DrawRange>,
+            #[wasm_bindgen(skip)]
+            pub draw_ranges: Vec<DrawRange>,
         }
 
+        #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
+        impl ReturnSubMesh {
+            #[wasm_bindgen(getter, js_name = primitiveType)]
+            pub fn primitive_type(&self) -> PrimitiveTypeStr {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter, js_name = objectRanges)]
+            pub fn object_ranges(&self) -> ArrayObjectRange {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter, js_name = vertexAttributes)]
+            pub fn vertex_attributes(&self) -> VertexAttributes {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter, js_name = vertexBuffers)]
+            pub fn vertex_buffers(&self) -> VertexBuffers {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(setter, js_name = vertexBuffers)]
+            pub fn set_vertex_buffers(&mut self, _: VertexBuffers) {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn indices(&self) -> JsIndices {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(setter, js_name = indices)]
+            pub fn set_indices(&mut self, _: JsIndices) {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter, js_name = drawRanges)]
+            pub fn draw_ranges(&self) -> ArrayDrawRange {
+                unreachable!()
+            }
+        }
+
+        #[wasm_bindgen(js_name = [<Texture $version>])]
         #[derive(serde::Serialize)]
         #[serde(rename_all = "camelCase")]
         #[derive(Clone)]
         pub struct Texture {
             pub semantic: TextureSemantic,
+            #[wasm_bindgen(skip)]
             pub transform: Float3x3,
+            #[wasm_bindgen(skip)]
             pub params: TextureParameters,
+        }
+
+        #[wasm_bindgen(js_class = [<Texture $version>])]
+        impl Texture {
+            #[wasm_bindgen(getter)]
+            pub fn transform(&self) -> ArrayNumber {
+                unreachable!()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn params(&self) -> TextureParams {
+                unreachable!()
+            }
         }
 
 
@@ -1166,25 +1398,52 @@ macro_rules! impl_parser {
 }
 
 pub mod _2_0 {
+
     use crate::types_2_0;
 
     impl_parser!(_2_0, Child);
 
+    #[wasm_bindgen(js_name = "Child_2_0")]
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase")]
     pub struct Child {
+        #[wasm_bindgen(skip)]
         pub id: String,
+        #[wasm_bindgen(js_name = childIndex)]
         pub child_index: u8,
+        #[wasm_bindgen(js_name = childMask)]
         pub child_mask: u32,
         pub tolerance: i8,
+        #[wasm_bindgen(js_name = byteSize)]
         pub byte_size: u32,
         #[serde(with = "_2_0::double3_seq_serializer")]
+        #[wasm_bindgen(skip)]
         pub offset: Double3,
         pub scale: f32,
         pub bounds: Bounds,
         pub primitives: usize,
+        #[wasm_bindgen(js_name = primitivesDelta)]
         pub primitives_delta: usize,
+        #[wasm_bindgen(js_name = gpuBytes)]
         pub gpu_bytes: usize,
+    }
+
+    #[wasm_bindgen(js_class = "Child_2_0")]
+    impl Child {
+        #[wasm_bindgen(getter)]
+        pub fn id(&self) -> String {
+            self.id.clone()
+        }
+
+        #[wasm_bindgen(getter = descendantObjectIds)]
+        pub fn descendant_object_ids(&self) -> Undefined {
+            wasm_bindgen::JsValue::undefined().into()
+        }
+
+        #[wasm_bindgen(getter)]
+        pub fn offset(&self) -> Vec<f32> {
+            unreachable!()
+        }
     }
 
     impl<'a> types_2_0::Schema<'a> {
@@ -1200,29 +1459,55 @@ pub mod _2_0 {
 pub mod _2_1 {
     use crate::types_2_1;
 
-    impl_parser!(_2_1, Child<'a>, descendant_object_ids);
+    impl_parser!(_2_1, Child, descendant_object_ids);
 
+    #[wasm_bindgen(js_name = "Child_2_1")]
     #[derive(serde::Serialize)]
     #[serde(rename_all = "camelCase")]
-    pub struct Child<'a> {
-        id: String,
+    pub struct Child {
+        #[wasm_bindgen(skip)]
+        pub id: String,
+        #[wasm_bindgen(js_name = childIndex)]
         pub child_index: u8,
+        #[wasm_bindgen(js_name = childMask)]
         pub child_mask: u32,
         pub tolerance: i8,
+        #[wasm_bindgen(js_name = byteSize)]
         pub byte_size: u32,
         #[serde(with = "_2_1::double3_seq_serializer")]
+        #[wasm_bindgen(skip)]
         pub offset: Double3,
         pub scale: f32,
         pub bounds: Bounds,
         pub primitives: usize,
+        #[wasm_bindgen(js_name = primitivesDelta)]
         pub primitives_delta: usize,
+        #[wasm_bindgen(js_name = gpuBytes)]
         pub gpu_bytes: usize,
-        #[serde(with = "serde_bytes")]
-        pub descendant_object_ids: Option<&'a [u8]>,
+        #[wasm_bindgen(skip)]
+        pub descendant_object_ids: Option<Vec<u32>>,
+    }
+
+    #[wasm_bindgen(js_class = "Child_2_1")]
+    impl Child {
+        #[wasm_bindgen(getter)]
+        pub fn id(&self) -> String {
+            self.id.clone()
+        }
+
+        #[wasm_bindgen(getter = descendantObjectIds)]
+        pub fn descendant_object_ids(&self) -> OptionalNumberArray {
+            unreachable!()
+        }
+
+        #[wasm_bindgen(getter)]
+        pub fn offset(&self) -> Vec<f32> {
+            unreachable!()
+        }
     }
 
     impl<'a> types_2_1::Schema<'a> {
-        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child<'a>> + '_ {
+        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child> + '_ {
             self.child_info.iter(
                 self.hash_bytes,
                 self.sub_mesh_projection.clone(),

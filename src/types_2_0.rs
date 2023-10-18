@@ -1,3 +1,4 @@
+use wasm_bindgen::prelude::wasm_bindgen;
 use bitflags::bitflags;
 use half::f16;
 use wasm_parser_derive::StructOfArray;
@@ -52,6 +53,7 @@ bitflags! {
 }
 
 /// Texture semantic/purpose.
+#[wasm_bindgen(js_name = TestureSemantic_2_0)]
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
@@ -100,6 +102,7 @@ pub struct Int8_3 {
     pub z: i8,
 }
 
+#[wasm_bindgen(js_name = Float3_2_0)]
 #[derive(Clone, Copy, StructOfArray)]
 #[derive(serde::Serialize)]
 pub struct Float3 {
@@ -108,6 +111,7 @@ pub struct Float3 {
     pub z: f32
 }
 
+#[wasm_bindgen(js_name = Double3_2_0)]
 #[derive(Clone, Copy, StructOfArray)]
 #[derive(serde::Serialize)]
 pub struct Double3 {
@@ -132,34 +136,41 @@ pub struct Float3x3 {
 }
 
 /// Axis aligned bounding box.
+#[wasm_bindgen(js_name = AABB_2_0)]
 #[derive(Clone, Copy, StructOfArray)]
 #[derive(serde::Serialize)]
 pub struct AABB {
     #[soa_nested]
     #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
+    #[wasm_bindgen(skip)]
     pub min: Float3,
     #[soa_nested]
     #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
+    #[wasm_bindgen(skip)]
     pub max: Float3,
 }
 
 /// Bounding sphere.
+#[wasm_bindgen(js_name = BoundingSphere_2_0)]
 #[derive(Clone, Copy, StructOfArray)]
 #[derive(serde::Serialize)]
 pub struct BoundingSphere {
     #[soa_nested]
     #[serde(rename = "center")]
     #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
+    #[wasm_bindgen(skip)]
     pub origo: Float3,
     pub radius: f32,
 }
 
 /// Node bounding volume.
+#[wasm_bindgen(js_name = Bounds_2_0)]
 #[derive(Clone, Copy, StructOfArray)]
 #[derive(serde::Serialize)]
 pub struct Bounds {
     #[soa_nested]
     #[serde(rename = "box")]
+    #[wasm_bindgen(js_name = "box")]
     pub _box: AABB,
     #[soa_nested]
     pub sphere: BoundingSphere,
