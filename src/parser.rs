@@ -6,7 +6,6 @@ use half::f16;
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
 use crate::ktx::*;
-use wasm_bindgen::prelude::*;
 
 pub struct Optionals<'a, const NUM_OPTIONALS: usize> {
     flags: &'a [u8; NUM_OPTIONALS],
@@ -226,61 +225,43 @@ pub struct Highlights<'a> {
     // mutex
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MeshObjectRange {
-    #[wasm_bindgen(js_name = objectId)]
     pub object_id: u32,
-    #[wasm_bindgen(js_name = beginVertex)]
     pub begin_vertex: usize,
-    #[wasm_bindgen(js_name = endVertex)]
     pub end_vertex: usize,
-    #[wasm_bindgen(js_name = beginTriangle)]
     pub begin_triangle: usize,
-    #[wasm_bindgen(js_name = endTriangle)]
     pub end_triangle: usize,
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DrawRange {
-    #[wasm_bindgen(js_name = childIndex)]
     pub child_index: u8,
-    #[wasm_bindgen(js_name = byteOffset)]
     pub byte_offset: usize,
     pub first: usize,
     pub count: usize,
 }
 
-#[wasm_bindgen]
 #[derive(Clone, Copy)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VertexAttribute {
-    kind: &'static str,
+    pub kind: &'static str,
     pub buffer: i8,
-    #[wasm_bindgen(js_name = componentCount)]
     pub component_count: u8,
-    component_type: &'static str,
+    pub component_type: &'static str,
     pub normalized: bool,
-    #[wasm_bindgen(js_name = byteOffset)]
     pub byte_offset: u32,
-    #[wasm_bindgen(js_name = byteStride)]
     pub byte_stride: u32,
 }
 
-#[wasm_bindgen]
-impl VertexAttribute {
-    pub fn kind(&self) -> JsValue {
-        self.kind.into()
-    }
-
-    #[wasm_bindgen(js_name = componentType)]
-    pub fn component_type(&self) -> JsValue {
-        self.component_type.into()
-    }
-}
-
-#[wasm_bindgen]
 #[derive(Clone)]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VertexAttributes {
     pub position: VertexAttribute,
     pub normal: Option<VertexAttribute>,
@@ -316,11 +297,38 @@ struct BufIndex {
     highlight_tri: i8,
 }
 
+#[derive(serde::Serialize)]
+#[serde(untagged)]
 pub enum Indices {
+    #[serde(with = "serde_bytes")]
     IndexBuffer(Vec<u8>),
     NumIndices(u32),
 }
 
+mod serde_bytes_nested {
+    pub fn serialize<S>(bytes: &Vec<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+
+        struct AsBytes<'a>(&'a Vec<u8>);
+
+        impl<'a> serde::Serialize for AsBytes<'a> {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where S: serde::Serializer
+            {
+                serde_bytes::serialize(self.0, serializer)
+            }
+        }
+
+        let mut seq = serializer.serialize_seq(bytes.len().into())?;
+        for bytes in bytes {
+            seq.serialize_element(&AsBytes(bytes))?
+        }
+        seq.end()
+    }
+}
 
 // use crate::types_2_0::*;
 // use crate::reader_2_0::*;
@@ -332,10 +340,10 @@ macro_rules! impl_parser {
         use crate::[<types $version>]::*;
         use crate::[<reader $version>]::*;
         use crate::parser::*;
-        use hashbrown::{HashMap, hash_map::Entry};
         use crate::thin_slice::ThinSliceIterator;
-        use js_sys::{Array, Uint8Array};
-        use wasm_bindgen::JsValue;
+        use crate::interleaved::*;
+
+        use hashbrown::{HashMap, hash_map::Entry};
 
         impl std::ops::Add for Float3 {
             type Output = Float3;
@@ -368,6 +376,38 @@ macro_rules! impl_parser {
                     OptionalVertexAttribute::TEX_COORD => Attribute::TexCoord,
                     _ => unreachable!()
                 }
+            }
+        }
+
+        pub mod float3_seq_serializer {
+            pub fn serialize<S>(v: &crate::[<types $version>]::Float3, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                use serde::ser::SerializeSeq;
+
+
+                let mut seq = serializer.serialize_seq(Some(3))?;
+                seq.serialize_element(&v.x)?;
+                seq.serialize_element(&v.y)?;
+                seq.serialize_element(&v.z)?;
+                seq.end()
+            }
+        }
+
+        pub mod double3_seq_serializer {
+            pub fn serialize<S>(v: &crate::[<types $version>]::Double3, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                use serde::ser::SerializeSeq;
+
+
+                let mut seq = serializer.serialize_seq(Some(3))?;
+                seq.serialize_element(&v.x)?;
+                seq.serialize_element(&v.y)?;
+                seq.serialize_element(&v.z)?;
+                seq.end()
             }
         }
 
@@ -466,7 +506,7 @@ macro_rules! impl_parser {
         }
 
         impl<'a> ChildInfo<'a> {
-            pub fn to_child(&self, filter: impl Fn(u32) -> bool) -> Child {
+            pub fn to_child(&self, filter: impl Fn(u32) -> bool) -> $child_ty {
                 let id = to_hex(self.hash);
                 let f32_offset = self.offset.into();
                 let bounds = Bounds {
@@ -499,8 +539,8 @@ macro_rules! impl_parser {
                     primitives_delta,
                     gpu_bytes,
                     $(
-                        // $child_extra_fields: unsafe{ Uint32Array::view(self.$child_extra_fields) },
-                        $child_extra_fields: self.$child_extra_fields.into(),
+                        $child_extra_fields: (!self.$child_extra_fields.is_empty())
+                            .then(|| bytemuck::cast_slice(self.$child_extra_fields)),
                     )*
                 }
             }
@@ -565,72 +605,29 @@ macro_rules! impl_parser {
             texture_range: TextureInfoRange,
         }
 
-        #[wasm_bindgen(js_name = [<ReturnSubMesh $version>])]
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
         pub struct ReturnSubMesh {
-            pub material_type: MaterialType,
+            pub material_type: u8,
             primitive_type: PrimitiveType,
             pub num_vertices: u32,
             pub num_triangles: u32,
-            object_ranges: Option<Vec<MeshObjectRange>>,
-            vertex_attributes: Option<VertexAttributes>,
+            object_ranges: Vec<MeshObjectRange>,
+            vertex_attributes: VertexAttributes,
+            #[serde(with = "serde_bytes_nested")]
             vertex_buffers: Vec<Vec<u8>>,
-            index_buffer: Option<Vec<u8>>,
-            pub num_indices: Option<u32>,
+            indices: Indices,
             pub base_color_texture: Option<u32>,
-            draw_ranges: Option<Vec<DrawRange>>,
+            draw_ranges: Vec<DrawRange>,
         }
 
-        #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
-        impl ReturnSubMesh {
-            pub fn primitive_type(&self) -> String {
-                format!("{:?}", self.primitive_type).to_ascii_uppercase()
-            }
-
-            pub fn object_ranges(&mut self) -> Array {
-                self.object_ranges.take().unwrap().into_iter().map(JsValue::from).collect()
-            }
-
-            pub fn vertex_attributes(&mut self) -> VertexAttributes {
-                self.vertex_attributes.take().unwrap()
-            }
-
-            pub fn vertex_buffers(&mut self) -> Array {
-                self.vertex_buffers.iter()
-                    .map(|buffer| unsafe { Uint8Array::view(buffer) })
-                    .collect()
-            }
-
-            pub fn draw_ranges(&mut self) -> Array {
-                self.draw_ranges.take().unwrap().into_iter().map(JsValue::from).collect()
-            }
-
-            pub fn index_buffer(&self) -> JsValue {
-                if let Some(buffer) = self.index_buffer.as_ref() {
-                    if self.num_vertices > u16::MAX as u32 {
-                        unsafe{ js_sys::Uint32Array::view(bytemuck::cast_slice(buffer)) }.into()
-                    }else{
-                        unsafe{ js_sys::Uint16Array::view(bytemuck::cast_slice(buffer)) }.into()
-                    }
-                }else{
-                    JsValue::null()
-                }
-            }
-        }
-
-        #[wasm_bindgen(js_name = [<Texture $version>])]
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
         #[derive(Clone)]
         pub struct Texture {
             pub semantic: TextureSemantic,
             pub transform: Float3x3,
-            params: TextureParameters,
-        }
-
-        #[wasm_bindgen(js_class = [<Texture $version>])]
-        impl Texture {
-            pub fn parameters(&self) -> TextureParameters {
-                // TODO: avoid this, maybe just call js parseKtx
-                self.params.clone()
-            }
+            pub params: TextureParameters,
         }
 
 
@@ -1137,29 +1134,17 @@ macro_rules! impl_parser {
 
                     object_ranges.sort_by_key(|obj_range| obj_range.object_id);
 
-                    let mut index_buffer = None;
-                    let mut num_indices = None;
-                    match indices {
-                        Indices::IndexBuffer(buffer) => {
-                            index_buffer = Some(buffer);
-                        }
-                        Indices::NumIndices(num) => {
-                            num_indices = Some(num);
-                        }
-                    };
-
-                    sub_meshes.push(ReturnSubMesh{
-                        material_type: *material_type,
+                    sub_meshes.push(ReturnSubMesh {
+                        material_type: *material_type as u8,
                         primitive_type: *primitive_type,
                         num_vertices: num_vertices as u32,
                         num_triangles: num_triangles as u32,
-                        object_ranges: Some(object_ranges),
-                        vertex_attributes: Some(vertex_attributes),
+                        object_ranges,
+                        vertex_attributes,
                         vertex_buffers,
-                        index_buffer,
-                        num_indices,
+                        indices,
                         base_color_texture,
-                        draw_ranges: Some(draw_ranges),
+                        draw_ranges: draw_ranges,
                     })
                 }
 
@@ -1171,7 +1156,7 @@ macro_rules! impl_parser {
                     let transform = reference.transform;
                     let ktx = reference.pixel_range;
                     let params = parse_ktx(ktx);
-                    textures[index as usize] = Some(Texture { semantic, transform, params});
+                    textures[index as usize] = Some(Texture { semantic, transform, params });
                 }
 
                 (sub_meshes, textures)
@@ -1185,26 +1170,21 @@ pub mod _2_0 {
 
     impl_parser!(_2_0, Child);
 
-    #[wasm_bindgen(js_name = Child_2_0)]
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
     pub struct Child {
-        pub(crate) id: String,
+        pub id: String,
         pub child_index: u8,
         pub child_mask: u32,
         pub tolerance: i8,
         pub byte_size: u32,
+        #[serde(with = "_2_0::double3_seq_serializer")]
         pub offset: Double3,
         pub scale: f32,
         pub bounds: Bounds,
         pub primitives: usize,
         pub primitives_delta: usize,
         pub gpu_bytes: usize,
-    }
-
-    #[wasm_bindgen(js_class = Child_2_0)]
-    impl Child {
-        pub fn id(&self) -> String {
-            self.id.clone()
-        }
     }
 
     impl<'a> types_2_0::Schema<'a> {
@@ -1218,46 +1198,31 @@ pub mod _2_0 {
 }
 
 pub mod _2_1 {
-    use js_sys::Uint32Array;
-
     use crate::types_2_1;
 
-    impl_parser!(_2_1, Child, descendant_object_ids);
+    impl_parser!(_2_1, Child<'a>, descendant_object_ids);
 
-    #[wasm_bindgen]
-    pub struct Child {
+    #[derive(serde::Serialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct Child<'a> {
         id: String,
         pub child_index: u8,
         pub child_mask: u32,
         pub tolerance: i8,
         pub byte_size: u32,
+        #[serde(with = "_2_1::double3_seq_serializer")]
         pub offset: Double3,
         pub scale: f32,
         pub bounds: Bounds,
         pub primitives: usize,
         pub primitives_delta: usize,
         pub gpu_bytes: usize,
-        descendant_object_ids: Uint32Array,
-    }
-
-    #[wasm_bindgen]
-    impl Child {
-        pub fn id(&self) -> String {
-            self.id.clone()
-        }
-
-        pub fn descendant_object_ids(&self) -> JsValue {
-            // self.descendant_object_ids.subarray(0, self.descendant_object_ids.byte_length() / size_of::<u32>() as u32)
-            if self.descendant_object_ids.byte_length() > 0 {
-                self.descendant_object_ids.clone().into()
-            }else{
-                JsValue::NULL
-            }
-        }
+        #[serde(with = "serde_bytes")]
+        pub descendant_object_ids: Option<&'a [u8]>,
     }
 
     impl<'a> types_2_1::Schema<'a> {
-        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child> + '_ {
+        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child<'a>> + '_ {
             self.child_info.iter(
                 self.hash_bytes,
                 self.sub_mesh_projection.clone(),

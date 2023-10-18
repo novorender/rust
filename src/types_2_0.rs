@@ -1,6 +1,5 @@
 use bitflags::bitflags;
 use half::f16;
-use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_parser_derive::StructOfArray;
 
 use crate::thin_slice::ThinSlice;
@@ -12,7 +11,7 @@ use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
-#[wasm_bindgen(js_name = PrimitiveType_2_0)]
+#[derive(serde::Serialize)]
 pub enum PrimitiveType {
     Points = 0,
     Lines = 1,
@@ -27,7 +26,7 @@ pub enum PrimitiveType {
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
-#[wasm_bindgen(js_name = MaterialType_2_0)]
+#[derive(serde::Serialize)]
 pub enum MaterialType {
     Opaque = 0,
     OpaqueDoubleSided = 1,
@@ -40,7 +39,7 @@ pub enum MaterialType {
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(Pod, Zeroable))]
 #[cfg_attr(feature= "checked_types", repr(transparent))]
-#[wasm_bindgen(js_name = OptionalVertexAttribute_2_0)]
+#[derive(serde::Serialize)]
 pub struct OptionalVertexAttribute(u8);
 
 bitflags! {
@@ -56,13 +55,13 @@ bitflags! {
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 #[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
 #[repr(u8)]
-#[wasm_bindgen(js_name = TextureSemantic_2_0)]
+#[derive(serde::Serialize)]
 pub enum TextureSemantic {
     BaseColor = 0,
 }
 
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = RgbaU8_2_0)]
+#[derive(serde::Serialize)]
 pub struct RgbaU8 {
     pub red: u8,
     pub green: u8,
@@ -71,12 +70,14 @@ pub struct RgbaU8 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[derive(serde::Serialize)]
 pub struct Half2 {
     pub x: f16,
     pub y: f16,
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[derive(serde::Serialize)]
 pub struct Half3 {
     pub x: f16,
     pub y: f16,
@@ -84,7 +85,7 @@ pub struct Half3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Int16_3_2_0)]
+#[derive(serde::Serialize)]
 pub struct Int16_3 {
     pub x: i16,
     pub y: i16,
@@ -92,7 +93,7 @@ pub struct Int16_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Int8_3_2_0)]
+#[derive(serde::Serialize)]
 pub struct Int8_3 {
     pub x: i8,
     pub y: i8,
@@ -100,7 +101,7 @@ pub struct Int8_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Float3_2_0)]
+#[derive(serde::Serialize)]
 pub struct Float3 {
     pub x: f32,
     pub y: f32,
@@ -108,7 +109,7 @@ pub struct Float3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Double3_2_0)]
+#[derive(serde::Serialize)]
 pub struct Double3 {
     pub x: f64,
     pub y: f64,
@@ -117,7 +118,7 @@ pub struct Double3 {
 
 /// 3x3 row major matrix
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Float3x3_2_0)]
+#[derive(serde::Serialize)]
 pub struct Float3x3 {
     pub e00: f32,
     pub e01: f32,
@@ -132,28 +133,33 @@ pub struct Float3x3 {
 
 /// Axis aligned bounding box.
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = AABB_2_0)]
+#[derive(serde::Serialize)]
 pub struct AABB {
     #[soa_nested]
+    #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
     pub min: Float3,
     #[soa_nested]
+    #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
     pub max: Float3,
 }
 
 /// Bounding sphere.
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = BoundingSphere_2_0)]
+#[derive(serde::Serialize)]
 pub struct BoundingSphere {
     #[soa_nested]
+    #[serde(rename = "center")]
+    #[serde(with = "crate::parser::_2_0::float3_seq_serializer")]
     pub origo: Float3,
     pub radius: f32,
 }
 
 /// Node bounding volume.
 #[derive(Clone, Copy, StructOfArray)]
-#[wasm_bindgen(js_name = Bounds_2_0)]
+#[derive(serde::Serialize)]
 pub struct Bounds {
     #[soa_nested]
+    #[serde(rename = "box")]
     pub _box: AABB,
     #[soa_nested]
     pub sphere: BoundingSphere,

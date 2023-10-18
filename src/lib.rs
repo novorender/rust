@@ -6,10 +6,9 @@
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-use core::{mem::size_of, mem, ffi::c_void};
+use core::{mem, ffi::c_void};
 use js_sys::Array;
 use parser::Highlights;
-use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
 pub mod reader_2_0;
@@ -88,14 +87,14 @@ impl Schema {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
                 schema.children(|_| true)
-                    .map(JsValue::from)
+                    .map(|child| serde_wasm_bindgen::to_value(&child).unwrap())
                     .collect()
             }
             "2.1" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
                 schema.children(|_| true)
-                    .map(JsValue::from)
+                    .map(|child| serde_wasm_bindgen::to_value(&child).unwrap())
                     .collect()
             }
             _ => todo!()
@@ -113,33 +112,21 @@ impl Schema {
                     Highlights{indices: &[]},
                     |_| true
                 );
-                let sub_meshes: Array = sub_meshes
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                let textures: Array = textures
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                [sub_meshes, textures].into_iter().collect()
+                let sub_meshes = serde_wasm_bindgen::to_value(&sub_meshes).unwrap();
+                let textures = serde_wasm_bindgen::to_value(&textures).unwrap();
+                [sub_meshes, textures.into()].into_iter().collect()
             }
             "2.1" => {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
-                let (sub_meshes, index) = schema.geometry(
+                let (sub_meshes, textures) = schema.geometry(
                     enable_outlines,
                     Highlights{indices: &[]},
                     |_| true
                 );
-                let sub_meshes: Array = sub_meshes
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                let textures: Array = index
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                [sub_meshes, textures].into_iter().collect()
+                let sub_meshes = serde_wasm_bindgen::to_value(&sub_meshes).unwrap();
+                let textures = serde_wasm_bindgen::to_value(&textures).unwrap();
+                [sub_meshes, textures.into()].into_iter().collect()
             }
             _ => todo!()
         }

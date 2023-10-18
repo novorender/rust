@@ -1,15 +1,15 @@
-use wasm_bindgen::prelude::*;
-
-#[wasm_bindgen]
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 #[derive(Clone)]
 pub struct TextureParameters {
-    kind: &'static str,
-    internal_format: &'static str,
+    pub kind: &'static str,
+    pub internal_format: &'static str,
     pub ty: u32,
     pub width: u32,
     pub height: u32,
     pub depth: u32,
-    image_data: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub image_data: Vec<u8>,
 }
 
 pub fn parse_ktx(ktx: &[u8]) -> TextureParameters {
