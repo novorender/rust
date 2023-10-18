@@ -20,6 +20,7 @@ pub mod thin_slice;
 pub mod range;
 pub mod parser;
 pub mod ktx;
+pub mod interleaved;
 
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
