@@ -1,12 +1,6 @@
 // #![cfg_attr(target_family="wasm", no_std)]
 
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-use core::{mem::size_of, mem, ffi::c_void};
+use core::{mem, ffi::c_void};
 use js_sys::Array;
 use parser::Highlights;
 use wasm_bindgen::JsValue;
