@@ -32,6 +32,8 @@ js-sys = "0.3.64"
 # serde_tuple = "0.5.0"
 hashbrown = "0.14.1"
 gl = "0.14.0"
+endianness = "0.2.0"
+anyhow = "1.0.75"
 
 [target.'cfg(not(target_family="wasm"))'.dependencies]
 log = "0.4.20"

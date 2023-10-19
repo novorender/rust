@@ -1297,9 +1297,11 @@ macro_rules! impl_parser {
                     let base_color_texture;
                     let first_group_mesh = group_meshes.first().unwrap();
                     if first_group_mesh.textures.len > 0 {
-                        let texture = unsafe{ first_group_mesh.textures
-                            .thin_iter(self.texture_pixels)
-                            .next() };
+                        let texture = unsafe{
+                            first_group_mesh.textures
+                                .thin_iter(self.texture_pixels)
+                                .next()
+                        };
                         let texture_index = first_group_mesh.texture_range.start;
                         base_color_texture = Some(texture_index);
                         match referenced_textures.entry(texture_index) {
@@ -1360,8 +1362,12 @@ macro_rules! impl_parser {
                     let semantic = reference.semantic;
                     let transform = reference.transform;
                     let ktx = reference.pixel_range;
-                    let params = parse_ktx(ktx);
-                    textures[index as usize] = Some(Texture { semantic, transform, params});
+                    let params = parse_ktx(ktx).unwrap().texture_parameters();
+                    textures[index as usize] = Some(Texture {
+                        semantic,
+                        transform,
+                        params,
+                    });
                 }
 
                 (sub_meshes, textures)
