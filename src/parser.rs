@@ -564,10 +564,99 @@ macro_rules! impl_parser {
             }
         }
 
+        impl<'a> Int16_3Slice<'a> {
+            fn copy_to_interleaved_array(&self, dst: &mut [i16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
+                debug_assert_eq!(byte_offset % size_of::<i16>(), 0);
+                debug_assert_eq!(byte_stride % size_of::<i16>(), 0);
+
+
+                let offset = byte_offset / size_of::<i16>();
+                let stride = byte_stride / size_of::<i16>();
+
+                let mut src = match component {
+                    0 => self.x.thin_iter(),
+                    1 => self.y.thin_iter(),
+                    2 => self.z.thin_iter(),
+                    _ => unreachable!()
+                };
+
+                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
+                    *dst = unsafe{ *src.next() }
+                }
+            }
+        }
+
+        impl<'a> RgbaU8Slice<'a> {
+            fn copy_to_interleaved_array(&self, dst: &mut [u8], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
+                debug_assert_eq!(byte_offset % size_of::<u8>(), 0);
+                debug_assert_eq!(byte_stride % size_of::<u8>(), 0);
+
+
+                let offset = byte_offset / size_of::<u8>();
+                let stride = byte_stride / size_of::<u8>();
+
+                let mut src = match component {
+                    0 => self.red.thin_iter(),
+                    1 => self.green.thin_iter(),
+                    2 => self.blue.thin_iter(),
+                    3 => self.alpha.thin_iter(),
+                    _ => unreachable!()
+                };
+
+                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
+                    *dst = unsafe{ *src.next() }
+                }
+            }
+        }
+
+        impl<'a> Half2Slice<'a> {
+            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
+                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
+                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
+
+
+                let offset = byte_offset / size_of::<f16>();
+                let stride = byte_stride / size_of::<f16>();
+
+                let mut src = match component {
+                    0 => self.x.thin_iter(),
+                    1 => self.y.thin_iter(),
+                    _ => unreachable!()
+                };
+
+                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
+                    *dst = unsafe{ *src.next() }
+                }
+            }
+        }
+
+        impl<'a> DeviationsSlice<'a> {
+            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
+                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
+                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
+
+
+                let offset = byte_offset / size_of::<f16>();
+                let stride = byte_stride / size_of::<f16>();
+
+                let mut src = match component {
+                    0 => self.a.unwrap().thin_iter(),
+                    1 => self.b.unwrap().thin_iter(),
+                    2 => self.c.unwrap().thin_iter(),
+                    3 => self.d.unwrap().thin_iter(),
+                    _ => unreachable!()
+                };
+
+                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
+                    *dst = unsafe{ *src.next() }
+                }
+            }
+        }
+
         impl<'a> VertexSlice<'a> {
             fn copy_attribute_to_interleaved_array(&self, dst: &mut [u8], attribute: Attribute, component: u32, byte_offset: usize, byte_stride: usize) {
                 match attribute {
-                    Attribute::Position => todo!(),
+                    Attribute::Position => unreachable!(),
                     Attribute::Normal => if let Some(normal) = &self.normal {
                         normal.copy_to_interleaved_array(
                             bytemuck::cast_slice_mut(dst),
@@ -577,12 +666,42 @@ macro_rules! impl_parser {
                             self.len as usize
                         )
                     },
-                    Attribute::Color => todo!(),
-                    Attribute::TexCoord => todo!(),
-                    Attribute::ProjectedPos => todo!(),
-                    Attribute::MaterialIndex => todo!(),
-                    Attribute::ObjectId => todo!(),
-                    Attribute::Deviations => todo!(),
+                    Attribute::Color => if let Some(color) = &self.color {
+                        color.copy_to_interleaved_array(
+                            bytemuck::cast_slice_mut(dst),
+                            component,
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        )
+                    },
+                    Attribute::TexCoord => if let Some(tex_coord) = &self.tex_coord {
+                        tex_coord.copy_to_interleaved_array(
+                            bytemuck::cast_slice_mut(dst),
+                            component,
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        )
+                    },
+                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.projected_pos {
+                        projected_pos.copy_to_interleaved_array(
+                            bytemuck::cast_slice_mut(dst),
+                            component,
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        )
+                    },
+                    Attribute::MaterialIndex => unreachable!(),
+                    Attribute::ObjectId => unreachable!(),
+                    Attribute::Deviations => self.deviations.copy_to_interleaved_array(
+                        bytemuck::cast_slice_mut(dst),
+                        component,
+                        byte_offset,
+                        byte_stride,
+                        self.len as usize
+                    ),
                 }
             }
         }
