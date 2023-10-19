@@ -1,14 +1,68 @@
+use bitflags::bitflags;
 use half::f16;
+use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_parser_derive::StructOfArray;
-#[cfg(feature = "checked_types")]
-use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 
 use crate::thin_slice::ThinSlice;
 use crate::impl_range;
-use crate::types::*;
+#[cfg(feature = "checked_types")]
+use bytemuck::{Pod, Zeroable, CheckedBitPattern};
 
+/// Type of GL render primitive.
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
+#[repr(u8)]
+#[wasm_bindgen]
+pub enum PrimitiveType {
+    Points = 0,
+    Lines = 1,
+    LineLoop = 2,
+    LineStrip = 3,
+    Triangles = 4,
+    TriangleStrip = 5,
+    TriangleFan = 6,
+}
+
+/// Type of material.
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
+#[repr(u8)]
+#[wasm_bindgen]
+pub enum MaterialType {
+    Opaque = 0,
+    OpaqueDoubleSided = 1,
+    Transparent = 2,
+    Elevation = 3,
+}
+
+
+/// Bitwise flags for which vertex attributes will be used in geometry.
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature= "checked_types", derive(Pod, Zeroable))]
+#[cfg_attr(feature= "checked_types", repr(transparent))]
+#[wasm_bindgen]
+pub struct OptionalVertexAttribute(u8);
+
+bitflags! {
+    impl OptionalVertexAttribute: u8 {
+        const NORMAL = 1;
+        const COLOR = 2;
+        const TEX_COORD = 4;
+        const PROJECTED_POS = 8;
+    }
+}
+
+/// Texture semantic/purpose.
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
+#[cfg_attr(feature= "checked_types", derive(CheckedBitPattern))]
+#[repr(u8)]
+#[wasm_bindgen]
+pub enum TextureSemantic {
+    BaseColor = 0,
+}
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct RgbaU8 {
     pub red: u8,
     pub green: u8,
@@ -30,6 +84,7 @@ pub struct Half3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Int16_3 {
     pub x: i16,
     pub y: i16,
@@ -37,6 +92,7 @@ pub struct Int16_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Int8_3 {
     pub x: i8,
     pub y: i8,
@@ -44,6 +100,7 @@ pub struct Int8_3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Float3 {
     pub x: f32,
     pub y: f32,
@@ -51,6 +108,7 @@ pub struct Float3 {
 }
 
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Double3 {
     pub x: f64,
     pub y: f64,
@@ -59,6 +117,7 @@ pub struct Double3 {
 
 /// 3x3 row major matrix
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Float3x3 {
     pub e00: f32,
     pub e01: f32,
@@ -73,6 +132,7 @@ pub struct Float3x3 {
 
 /// Axis aligned bounding box.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct AABB {
     #[soa_nested]
     pub min: Float3,
@@ -82,6 +142,7 @@ pub struct AABB {
 
 /// Bounding sphere.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct BoundingSphere {
     #[soa_nested]
     pub origo: Float3,
@@ -90,6 +151,7 @@ pub struct BoundingSphere {
 
 /// Node bounding volume.
 #[derive(Clone, Copy, StructOfArray)]
+#[wasm_bindgen]
 pub struct Bounds {
     #[soa_nested]
     pub _box: AABB,
@@ -185,7 +247,6 @@ pub struct Triangle {
 /// Mesh Textures
 #[derive(Clone, StructOfArray)]
 #[soa_len]
-#[soa_range_index(TextureInfoRange)]
 pub struct TextureInfo<'a> {
     pub semantic: TextureSemantic,
     #[soa_nested]
@@ -232,7 +293,7 @@ pub struct SubMesh<'a> {
     pub textures: TextureInfoSlice<'a>,
 }
 
-pub type VertexIndex = u32;
+pub type VertexIndex = u16;
 pub type HashBytes = u8;
 pub type TexturePixels = u8;
 /// Information about descendant object ids, which may be present for branches with few object ids,
@@ -284,6 +345,6 @@ pub struct Schema<'a> {
     pub vertex: VertexSlice<'a>,
     pub triangle: TriangleSlice<'a>,
     /// Mesh vertex indices, relative to each draw call, hence 16 bit.
-    pub vertex_index: Option<ThinSlice<'a, u16>>,
+    pub vertex_index: Option<ThinSlice<'a, VertexIndex>>,
     pub texture_pixels: ThinSlice<'a, TexturePixels>,
 }

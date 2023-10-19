@@ -1,24 +1,20 @@
 // #![cfg_attr(target_family="wasm", no_std)]
 
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-use core::{mem::size_of, mem, ffi::c_void};
-use parser::Version;
-#[cfg(target_family = "wasm")]
+use core::{mem, ffi::c_void};
+use js_sys::Array;
+use parser::Highlights;
+use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
-pub mod parser;
-pub mod parser_2_0;
-pub mod parser_2_1;
+pub mod reader_2_0;
+pub mod reader_2_1;
 pub mod types_2_1;
 pub mod types_2_0;
 pub mod thin_slice;
 pub mod range;
-pub mod types;
+pub mod parser;
+pub mod ktx;
+pub mod interleaved;
 
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
@@ -35,7 +31,7 @@ macro_rules! log {
 #[cfg(all(feature = "console", not(target_family = "wasm")))]
 use log::debug as log;
 
-#[cfg(all(not(feature = "console"), target_family = "wasm"))]
+#[cfg(not(feature = "console"))]
 #[macro_export]
 macro_rules! log {
     ($($tt:tt)*) => {
@@ -43,99 +39,138 @@ macro_rules! log {
     };
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[wasm_bindgen]
 pub fn init_console() {
     #[cfg(all(target_family="wasm", feature = "console_error_panic_hook"))]
     console_error_panic_hook::set_once();
 }
 
-macro_rules! primitive_function_impl {
-    ($name: ident, $dst_ty: ty, $src_ty: ty) => {
-        paste::paste!{
-            #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-            pub fn [<$name _ $dst_ty>](dst: &mut [$dst_ty], src: $src_ty, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
-                $name(dst, src, byte_offset, byte_stride, begin, end)
-            }
-        }
-    };
-}
 
-fn copy_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: &[T], byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
-    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
-    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
-
-    let offset = byte_offset / size_of::<T>();
-    let stride = byte_stride / size_of::<T>();
-
-    for (dst, src) in dst[offset..].iter_mut().step_by(stride).zip(&src[begin..end]) {
-        *dst = *src
-    }
-}
-
-primitive_function_impl!(copy_to_interleaved_array, u8, &[u8]);
-primitive_function_impl!(copy_to_interleaved_array, u16, &[u16]);
-primitive_function_impl!(copy_to_interleaved_array, u32, &[u32]);
-primitive_function_impl!(copy_to_interleaved_array, i8, &[i8]);
-primitive_function_impl!(copy_to_interleaved_array, i16, &[i16]);
-primitive_function_impl!(copy_to_interleaved_array, i32, &[i32]);
-primitive_function_impl!(copy_to_interleaved_array, f32, &[f32]);
-primitive_function_impl!(copy_to_interleaved_array, f64, &[f64]);
-
-fn fill_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: T, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
-    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
-    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
-
-    let offset = byte_offset / size_of::<T>();
-    let stride = byte_stride / size_of::<T>();
-
-    let end = (offset + stride * (end - begin)).min(dst.len());
-
-    for dst in dst[offset..end].iter_mut().step_by(stride) {
-        *dst = src;
-    }
-}
-
-primitive_function_impl!(fill_to_interleaved_array, u8, u8);
-primitive_function_impl!(fill_to_interleaved_array, u16, u16);
-primitive_function_impl!(fill_to_interleaved_array, u32, u32);
-primitive_function_impl!(fill_to_interleaved_array, i8, i8);
-primitive_function_impl!(fill_to_interleaved_array, i16, i16);
-primitive_function_impl!(fill_to_interleaved_array, i32, i32);
-primitive_function_impl!(fill_to_interleaved_array, f32, f32);
-primitive_function_impl!(fill_to_interleaved_array, f64, f64);
-
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[wasm_bindgen]
 pub struct Schema{
     _data: Vec<u8>,
+    version: &'static str,
     schema: *mut c_void,
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-pub struct ChildVec(usize, usize);
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "{subMeshes: Array<ReturnSubMesh_2_0 | ReturnSubMesh_2_1>, textures: Array<Texture_2_0 | Texture_2_1>}")]
+    pub type NodeGeometry;
+    #[wasm_bindgen(typescript_type = "Array<Child_2_0> | Array<Child_2_1>")]
+    pub type ArrayChild;
+}
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[wasm_bindgen]
 impl Schema {
     pub fn parse_2_0(data: Vec<u8>) -> Schema {
-        let schema = parser::Schema::parse(&data, Version::_2_0);
+        let schema = types_2_0::Schema::parse(&data);
         Schema {
+            version: "2.0",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
         }
     }
 
     pub fn parse_2_1(data: Vec<u8>) -> Schema {
-        let schema = parser::Schema::parse(&data, Version::_2_1);
+        let schema = types_2_1::Schema::parse(&data);
         Schema {
+            version: "2.1",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
         }
     }
 
-    pub fn children(&self) -> ChildVec {
-        // SAFETY: schema is put in a `Box` when created in `Schema::parse`
-        let schema = unsafe{ &*(self.schema as *mut parser::Schema) };
-        let children = schema.children(|_| true);
-        ChildVec(children.as_ptr() as usize, children.len())
+    pub fn children(&self) -> ArrayChild {
+        let array: Array = match self.version {
+            "2.0" => {
+                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+                let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
+                schema.children(|_| true)
+                    .map(JsValue::from)
+                    .collect()
+            }
+            "2.1" => {
+                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+                let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
+                schema.children(|_| true)
+                    .map(JsValue::from)
+                    .collect()
+            }
+            _ => todo!()
+        };
+        let js_value: JsValue = array.into();
+        js_value.into()
+    }
+
+    // Array<Array> contains 2 Arrays, first is the vertex buffer, the other the textures
+    pub fn geometry(&self, enable_outlines: bool) -> NodeGeometry {
+        #[wasm_bindgen]
+        pub struct InnerNodeGeometry {
+            sub_meshes: Array,
+            textures: Array,
+        }
+
+        #[wasm_bindgen]
+        impl InnerNodeGeometry {
+            #[wasm_bindgen(getter)]
+            #[wasm_bindgen(js_name = "subMeshes")]
+            pub fn sub_meshes(&self) -> Array {
+                self.sub_meshes.clone()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn textures(&self) -> Array {
+                self.textures.clone()
+            }
+        }
+
+        let js_value: JsValue = match self.version {
+            "2.0" => {
+                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+                let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
+                let (sub_meshes, textures) = schema.geometry(
+                    enable_outlines,
+                    Highlights{indices: &[]},
+                    |_| true
+                );
+                let sub_meshes: Array = sub_meshes
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                let textures: Array = textures
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                InnerNodeGeometry{
+                    sub_meshes,
+                    textures
+                }.into()
+            }
+            "2.1" => {
+                // SAFETY: schema is put in a `Box` when created in `Schema::parse`
+                let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
+                let (sub_meshes, index) = schema.geometry(
+                    enable_outlines,
+                    Highlights{indices: &[]},
+                    |_| true
+                );
+                let sub_meshes: Array = sub_meshes
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                let textures: Array = index
+                    .into_iter()
+                    .map(JsValue::from)
+                    .collect();
+                InnerNodeGeometry{
+                    sub_meshes,
+                    textures
+                }.into()
+            }
+            _ => todo!()
+        };
+        js_value.into()
     }
 }
 
@@ -143,6 +178,10 @@ impl Schema {
 impl Drop for Schema {
     fn drop(&mut self) {
         // SAFETY: schema is put in a `Box` when created in `Schema::parse`
-        mem::drop(unsafe{ Box::from_raw(self.schema as *mut parser::Schema) })
+        match self.version {
+            "2.0" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_0::Schema) }),
+            "2.1" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_1::Schema) }),
+            _ => todo!()
+        }
     }
 }

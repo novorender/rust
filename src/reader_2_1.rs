@@ -1,12 +1,12 @@
-use crate::types_2_0::*;
-use crate::parser::Reader;
-
+use crate::types_2_1::*;
+use crate::parser::{Reader, Optionals};
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
 #[repr(C)]
 pub struct Sizes {
     pub child_info: u32,
     pub hash_bytes: u32,
+    pub descendant_object_ids: u32,
     pub sub_mesh_projection: u32,
     pub sub_mesh: u32,
     pub texture_info: u32,
@@ -18,35 +18,17 @@ pub struct Sizes {
 
 pub const NUM_OPTIONALS: usize = 10;
 
-pub struct Optionals<'a> {
-    pub(crate) flags: &'a [u8; NUM_OPTIONALS],
-    pub(crate) next: usize
-}
-
-impl<'a> Optionals<'a> {
-    pub fn next(&mut self) -> bool {
-        let ret = self.flags[self.next];
-        self.next += 1;
-        ret != 0
-    }
-}
-
-pub struct Parser<'a>{
+pub struct Parser<'a> {
     reader: Reader<'a>,
     sizes: &'a Sizes,
-    optionals: Optionals<'a>
+    optionals: Optionals<'a, NUM_OPTIONALS>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(mut reader: Reader<'a>) -> Parser<'a> {
         let sizes: &Sizes = reader.read();
-        let optionals = Optionals{ flags: reader.read_checked(), next: 0 };
-
-        Parser{
-            reader,
-            sizes,
-            optionals,
-        }
+        let optionals = Optionals::new(reader.read_checked());
+        Parser { reader, sizes, optionals }
     }
 
     pub fn read_double3(&mut self, len: u32) -> Double3Slice<'a> {
@@ -138,6 +120,8 @@ impl<'a> Parser<'a> {
             scale: self.reader.read_slice(len),
             bounds: self.read_bounds(len),
             sub_meshes: SubMeshProjectionRangeSlice(self.reader.read_range(len)),
+            descendant_object_ids: DescendantObjectIdsRangeSlice(self.reader.read_range(len)),
+
         }
     }
 
@@ -204,15 +188,13 @@ impl<'a> Parser<'a> {
     }
 
     pub fn read_triangle(&mut self, len: u32) -> TriangleSlice<'a> {
-        TriangleSlice {
-            len,
-            topology_flags: self.optionals.next().then(|| self.reader.read_slice(len))
-        }
+        TriangleSlice { len, topology_flags: self.optionals.next().then(|| self.reader.read_slice(len)) }
     }
 
     pub fn read_schema(&mut self) -> Schema<'a> {
         let child_info = self.read_child_info(self.sizes.child_info);
         let hash_bytes = self.reader.read_slice(self.sizes.hash_bytes);
+        let descendant_object_ids = self.reader.read_slice(self.sizes.descendant_object_ids);
         let sub_mesh_projection = self.read_sub_mesh_projection(self.sizes.sub_mesh_projection);
         let sub_mesh = self.read_sub_mesh(self.sizes.sub_mesh);
         let texture_info = self.read_texture_info(self.sizes.texture_info);
@@ -226,6 +208,7 @@ impl<'a> Parser<'a> {
         Schema {
             child_info,
             hash_bytes,
+            descendant_object_ids,
             sub_mesh_projection,
             sub_mesh,
             texture_info,
