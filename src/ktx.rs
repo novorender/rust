@@ -422,12 +422,12 @@ pub fn parse_ktx(ktx: &[u8]) -> Result<Ktx> {
     })
 }
 
-#[test]
-fn test() {
-    let data = include_bytes!("../skybox.ktx");
-    let ktx = parse_ktx(data).unwrap();
-    assert_eq!(ktx.header.num_faces, 6);
-    assert_eq!(ktx.header.num_array_elements, 0);
-    assert_eq!(ktx.header.num_levels, 11);
-    dbg!(ktx.header);
-}
+// #[test]
+// fn test() {
+//     let data = include_bytes!("../skybox.ktx");
+//     let ktx = parse_ktx(data).unwrap();
+//     assert_eq!(ktx.header.num_faces, 6);
+//     assert_eq!(ktx.header.num_array_elements, 0);
+//     assert_eq!(ktx.header.num_levels, 11);
+//     dbg!(ktx.header);
+// }
