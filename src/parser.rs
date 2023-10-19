@@ -1492,7 +1492,7 @@ pub mod _2_1 {
     impl Child {
         #[wasm_bindgen(getter)]
         pub fn id(&self) -> String {
-            self.id.clone()
+            unreachable!()
         }
 
         #[wasm_bindgen(getter = descendantObjectIds)]
