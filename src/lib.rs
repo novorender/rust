@@ -70,6 +70,28 @@ extern "C" {
     pub type ArrayChild;
 }
 
+impl Schema {
+    pub fn schema_2_0(&self) -> Option<&types_2_0::Schema> {
+        if self.version == "2.0" {
+            // SAFETY: schema is put in a `Box` when created in `Schema::parse` and we check
+            // it's the correct type through the version check
+            Some(unsafe{ &*(self.schema as *mut types_2_0::Schema) })
+        }else{
+            None
+        }
+    }
+
+    pub fn schema_2_1(&self) -> Option<&types_2_1::Schema> {
+        if self.version == "2.1" {
+            // SAFETY: schema is put in a `Box` when created in `Schema::parse` and we check
+            // it's the correct type through the version check
+            Some(unsafe{ &*(self.schema as *mut types_2_1::Schema) })
+        }else{
+            None
+        }
+    }
+}
+
 #[wasm_bindgen]
 impl Schema {
     pub fn parse_2_0(data: Vec<u8>) -> Schema {

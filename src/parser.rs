@@ -222,6 +222,7 @@ fn test_to_hex() {
 }
 
 #[wasm_bindgen]
+#[derive(Default)]
 pub struct Highlights {
     pub(crate) indices: Vec<u8>,
 }
@@ -1408,6 +1409,7 @@ pub mod _2_0 {
 }
 
 pub mod _2_1 {
+    #[cfg(target_family = "wasm")]
     use js_sys::Uint32Array;
 
     use crate::types_2_1;
@@ -1427,7 +1429,10 @@ pub mod _2_1 {
         pub primitives: usize,
         pub primitives_delta: usize,
         pub gpu_bytes: usize,
+        #[cfg(target_family = "wasm")]
         descendant_object_ids: Uint32Array,
+        #[cfg(not(target_family = "wasm"))]
+        descendant_object_ids: Vec<u32>,
     }
 
     #[wasm_bindgen(js_class = Child_2_1)]
@@ -1436,6 +1441,7 @@ pub mod _2_1 {
             self.id.clone()
         }
 
+        #[cfg(target_family = "wasm")]
         pub fn descendant_object_ids(&self) -> JsValue {
             // self.descendant_object_ids.subarray(0, self.descendant_object_ids.byte_length() / size_of::<u32>() as u32)
             if self.descendant_object_ids.byte_length() > 0 {
@@ -1443,6 +1449,13 @@ pub mod _2_1 {
             }else{
                 JsValue::NULL
             }
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    impl Child {
+        pub fn descendant_object_ids(&self) -> &[u32] {
+            &self.descendant_object_ids
         }
     }
 
