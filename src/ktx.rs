@@ -12,16 +12,25 @@ pub enum TextureData<'a> {
     Levels(&'a[u8]),
 }
 
+#[derive(serde::Serialize)]
 #[wasm_bindgen]
 #[derive(Clone)]
 pub struct TextureParameters {
-    kind: &'static str,
-    internal_format: &'static str,
-    ty: Option<&'static str>,
-    has_mips: bool,
+    #[wasm_bindgen(skip)]
+    pub kind: &'static str,
+    #[wasm_bindgen(skip)]
+    pub internal_format: &'static str,
+    #[wasm_bindgen(skip)]
+    pub ty: Option<&'static str>,
+    #[wasm_bindgen(skip)]
+    pub has_mips: bool,
+    #[wasm_bindgen(skip)]
     pub width: u32,
+    #[wasm_bindgen(skip)]
     pub height: u32,
+    #[wasm_bindgen(skip)]
     pub depth: u32,
+    #[serde(skip)]
     image_data: Array,
 }
 
@@ -29,17 +38,17 @@ pub struct TextureParameters {
 impl TextureParameters {
     #[wasm_bindgen(getter)]
     pub fn kind(&self) -> String {
-        self.kind.into()
+        unreachable!()
     }
 
     #[wasm_bindgen(getter, js_name = "internalFormat")]
     pub fn internal_format(&self) -> String {
-        self.internal_format.into()
+        unreachable!()
     }
 
     #[wasm_bindgen(getter, js_name = "type")]
     pub fn ty(&self) -> Option<String> {
-        self.ty.map(|ty| ty.into())
+        unreachable!()
     }
 
     #[wasm_bindgen(getter)]
