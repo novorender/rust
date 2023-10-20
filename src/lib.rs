@@ -46,7 +46,7 @@ pub fn init_console() {
 
 
 #[wasm_bindgen]
-pub struct Schema{
+pub struct Schema {
     _data: Vec<u8>,
     version: &'static str,
     schema: *mut c_void,
@@ -97,7 +97,7 @@ impl Schema {
                     .map(|child| serde_wasm_bindgen::to_value(&child).unwrap())
                     .collect()
             }
-            _ => todo!()
+            _ => todo!("version {} not implemented yet", self.version)
         };
 
         let js_value: JsValue = array.into();
@@ -157,7 +157,7 @@ impl Schema {
                     textures
                 }.into()
             }
-            _ => todo!()
+            _ => todo!("version {} not implemented yet", self.version)
         };
 
         js_value.into()
@@ -171,7 +171,7 @@ impl Drop for Schema {
         match self.version {
             "2.0" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_0::Schema) }),
             "2.1" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_1::Schema) }),
-            _ => todo!()
+            _ => todo!("version {} not implemented yet", self.version)
         }
     }
 }
