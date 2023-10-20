@@ -39,7 +39,7 @@ fn test_parser() -> anyhow::Result<()>{
 
     let (sub_meshes, textures) = schema.geometry(
         false,
-        Highlights{ indices: &[] },
+        &Highlights::default(),
         |_| true
     );
 
@@ -101,7 +101,7 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
 
     let (_sub_meshes, _textures) = schema.geometry(
         false,
-        Highlights{ indices: &[] },
+        &Highlights::default(),
         |_| true
     );
 

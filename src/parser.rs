@@ -221,9 +221,10 @@ fn test_to_hex() {
     assert_eq!(to_hex(&[1, 2, 15, 3]), "01020F03")
 }
 
-pub struct Highlights<'a> {
-    pub indices: &'a [u8],
-    // mutex
+#[wasm_bindgen]
+#[derive(Default)]
+pub struct Highlights {
+    pub(crate) indices: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -881,7 +882,7 @@ macro_rules! impl_parser {
                 })
             }
 
-            pub fn geometry(&self, enable_outlines: bool, highlights: Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
+            pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
                 // TODO: This is only to check if there's a global indices buffer but maybe just
                 // check sub_mesh.indices.is_empty()
                 let vertex_index = &self.vertex_index;
@@ -932,10 +933,6 @@ macro_rules! impl_parser {
                     });
                     group.group_meshes.push(sub_mesh);
                 }
-
-                // TODO: we don't want highlights to change during parsing, so we hold the lock for the entire file
-                // most probably it won't be needed as this is a copy of the original in js anyway?
-                // highlights.mutex.lock()
 
                 for Group {
                     material_type,
@@ -1297,9 +1294,11 @@ macro_rules! impl_parser {
                     let base_color_texture;
                     let first_group_mesh = group_meshes.first().unwrap();
                     if first_group_mesh.textures.len > 0 {
-                        let texture = unsafe{ first_group_mesh.textures
-                            .thin_iter(self.texture_pixels)
-                            .next() };
+                        let texture = unsafe{
+                            first_group_mesh.textures
+                                .thin_iter(self.texture_pixels)
+                                .next()
+                        };
                         let texture_index = first_group_mesh.texture_range.start;
                         base_color_texture = Some(texture_index);
                         match referenced_textures.entry(texture_index) {
@@ -1353,15 +1352,17 @@ macro_rules! impl_parser {
                     })
                 }
 
-                // TODO: highlights.mutex.unlock()
-
                 let mut textures = vec![None; self.texture_info.len as usize];
                 for (index, reference) in referenced_textures {
                     let semantic = reference.semantic;
                     let transform = reference.transform;
                     let ktx = reference.pixel_range;
-                    let params = parse_ktx(ktx);
-                    textures[index as usize] = Some(Texture { semantic, transform, params});
+                    let params = parse_ktx(ktx).unwrap().texture_parameters();
+                    textures[index as usize] = Some(Texture {
+                        semantic,
+                        transform,
+                        params,
+                    });
                 }
 
                 (sub_meshes, textures)
@@ -1408,6 +1409,7 @@ pub mod _2_0 {
 }
 
 pub mod _2_1 {
+    #[cfg(target_family = "wasm")]
     use js_sys::Uint32Array;
 
     use crate::types_2_1;
@@ -1427,7 +1429,10 @@ pub mod _2_1 {
         pub primitives: usize,
         pub primitives_delta: usize,
         pub gpu_bytes: usize,
+        #[cfg(target_family = "wasm")]
         descendant_object_ids: Uint32Array,
+        #[cfg(not(target_family = "wasm"))]
+        descendant_object_ids: Vec<u32>,
     }
 
     #[wasm_bindgen(js_class = Child_2_1)]
@@ -1436,6 +1441,7 @@ pub mod _2_1 {
             self.id.clone()
         }
 
+        #[cfg(target_family = "wasm")]
         pub fn descendant_object_ids(&self) -> JsValue {
             // self.descendant_object_ids.subarray(0, self.descendant_object_ids.byte_length() / size_of::<u32>() as u32)
             if self.descendant_object_ids.byte_length() > 0 {
@@ -1443,6 +1449,13 @@ pub mod _2_1 {
             }else{
                 JsValue::NULL
             }
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    impl Child {
+        pub fn descendant_object_ids(&self) -> &[u32] {
+            &self.descendant_object_ids
         }
     }
 
