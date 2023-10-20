@@ -7,6 +7,10 @@ use endianness::ByteOrder;
 
 use crate::parser::ArrayUint8Array;
 
+static IDENTIFIER_KTX1: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
+static IDENTIFIER_KTX2: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
+static HEADER_LEN: usize = 12 + (13 * 4); // identifier + header elements (not including key value meta-data pairs)
+
 pub enum TextureData<'a> {
     CubeLevels(&'a[&'a[u8]]),
     Levels(&'a[u8]),
@@ -105,9 +109,6 @@ impl Ktx<'_> {
         }
     }
 }
-
-static IDENTIFIER: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
-static HEADER_LEN: usize = 12 + (13 * 4); // identifier + header elements (not including key value meta-data pairs)
 
 
 #[derive(Clone)]
@@ -246,9 +247,15 @@ fn texture_data_type(gl_type: u32) -> &'static str {
 
 
 fn parse_header(ktx: &[u8]) -> Result<Header> {
-    for (id, ktx) in IDENTIFIER.iter().zip(ktx[0..12].iter()) {
-        if ktx != id {
-            return Err(anyhow!("Texture missing KTX identifier"))
+    if &IDENTIFIER_KTX1 != &ktx[0..12] {
+        if &IDENTIFIER_KTX2 == &ktx[0..12] {
+            return Err(anyhow!("Texture has KTX2 format which is not supported yet"))
+        }else{
+            return Err(anyhow!(
+                "Texture missing KTX identifier, expected {:?}, but file contains {:?}",
+                &IDENTIFIER_KTX1,
+                &ktx[0..12]
+            ))
         }
     }
 
