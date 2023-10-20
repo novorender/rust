@@ -59,6 +59,11 @@ anyhow = "1.0.75"
 [profile.release]
 lto =  true
 
+[profile.debug-optimized]
+inherits = "dev"
+opt-level = 1
+
+
 [features]
 console = ["web-sys", "console_error_panic_hook"]
 checked_types = []
