@@ -1,5 +1,14 @@
 // #![cfg_attr(target_family="wasm", no_std)]
 
+#[cfg(feature="cap")]
+use std::alloc;
+#[cfg(feature="cap")]
+use cap::Cap;
+
+#[cfg(feature="cap")]
+#[global_allocator]
+static ALLOCATOR: Cap<alloc::System> = Cap::new(alloc::System, usize::MAX);
+
 use core::{mem, ffi::c_void};
 use js_sys::Array;
 use parser::Highlights;
@@ -106,6 +115,9 @@ impl Schema {
 
     // Array<Array> contains 2 Arrays, first is the vertex buffer, the other the textures
     pub fn geometry(&self, enable_outlines: bool) -> NodeGeometry {
+        #[cfg(feature="memory-monitor")]
+        log!("Currently allocated: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
+
         #[wasm_bindgen]
         pub struct InnerNodeGeometry {
             sub_meshes: JsValue,
@@ -173,5 +185,8 @@ impl Drop for Schema {
             "2.1" => mem::drop(unsafe{ Box::from_raw(self.schema as *mut types_2_1::Schema) }),
             _ => todo!("version {} not implemented yet", self.version)
         }
+
+        #[cfg(feature="memory-monitor")]
+        log!("Currently allocated after dropping schema: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
     }
 }
