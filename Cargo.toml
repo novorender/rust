@@ -34,6 +34,7 @@ hashbrown = "0.14.1"
 gl = "0.14.0"
 endianness = "0.2.0"
 anyhow = "1.0.75"
+cap = { version = "0.1.2", features = ["stats"], optional = true }
 
 [target.'cfg(not(target_family="wasm"))'.dependencies]
 log = "0.4.20"
@@ -67,5 +68,6 @@ opt-level = 1
 [features]
 console = ["web-sys", "console_error_panic_hook"]
 checked_types = []
+memory-monitor = ["cap"]
 unstable = []
 # default = ["console", "checked_types"]
