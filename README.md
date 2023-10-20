@@ -12,6 +12,12 @@ To build with a watch that rebuilds on save:
 cargo watch -i .gitignore -i "pkg/*" -s "wasm-pack build --scope novorender --release --features=console"
 ```
 
+At least on linux that line usually makes the npm watch to fail, The following alternative generates the files on a different folder and then copes them to the write location which fixes the problem, a similar command could be used in windows to finally move the files and delete the temporary folder:
+
+```
+cargo watch -i .gitignore -i "pkg/*" -i "pkg_new" -s "wasm-pack build --scope novorender --release --features=console --out-dir pkg_new && mv pkg_new/* pkg/ && rm -rf pkg_new"
+```
+
 To build with debug symbols that can be inspected with chromes WebAssembly DWARF extension;
 
 ```
