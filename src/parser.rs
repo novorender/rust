@@ -336,8 +336,8 @@ pub struct VertexAttributes {
 struct PossibleBuffers {
     pos: Vec<u8>,
     primary: Vec<u8>,
-    tri_pos: Option<Vec<i16>>,
-    tri_id: Option<Vec<u32>>,
+    tri_pos: Option<Vec<u8>>,
+    tri_id: Option<Vec<u8>>,
     highlight: Vec<u8>,
     highlight_tri: Option<Vec<u8>>,
 }
@@ -974,13 +974,21 @@ macro_rules! impl_parser {
                     let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
-                    let mut triangle_pos_buffer;
-                    let mut triangle_object_id_buffer;
+                    let mut triangle_pos_buffer: Option<Vec<u8>>;
+                    let mut triangle_object_id_buffer: Option<Vec<u8>>;
                     let mut highlight_buffer_tri;
                     if enable_outlines && *primitive_type == PrimitiveType::Triangles {
-                        triangle_pos_buffer = Some(Vec::with_capacity(num_triangles * triangle_pos_stride));
-                        triangle_object_id_buffer = Some(vec![0; num_triangles]);
-                        highlight_buffer_tri = Some(vec![0; num_triangles]);
+                        let mut buffer = Vec::with_capacity(num_triangles * triangle_pos_stride * size_of::<i16>());
+                        unsafe{ buffer.set_len(num_triangles * triangle_pos_stride * size_of::<i16>()) };
+                        triangle_pos_buffer = Some(buffer);
+
+                        let mut buffer = Vec::with_capacity(num_triangles * size_of::<u32>());
+                        unsafe{ buffer.set_len(num_triangles * size_of::<u32>()) };
+                        triangle_object_id_buffer = Some(buffer);
+
+                        let mut buffer = Vec::with_capacity(num_triangles);
+                        unsafe{ buffer.set_len(num_triangles) };
+                        highlight_buffer_tri = Some(buffer);
                     }else{
                         triangle_pos_buffer = None;
                         triangle_object_id_buffer = None;
@@ -1075,6 +1083,7 @@ macro_rules! impl_parser {
                             if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
                                 = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
                             {
+                                let triangle_pos_buffer = &mut bytemuck::cast_slice_mut(triangle_pos_buffer)[triangle_offset ..];
                                 if index_buffer.is_some() {
                                     num_triangles_in_submesh = sub_mesh.indices.len() / 3;
                                     let (x, y ,z) = (
@@ -1082,24 +1091,28 @@ macro_rules! impl_parser {
                                         sub_mesh.vertices.position.y,
                                         sub_mesh.vertices.position.z
                                     );
-                                    for index in sub_mesh.indices {
+                                    for (index, triangle) in sub_mesh.indices.iter()
+                                        .zip(triangle_pos_buffer.chunks_mut(3))
+                                    {
                                         let index = *index as usize;
                                         // TODO: Add support for triangle strips and fans as well...
-                                        triangle_pos_buffer.push(unsafe{ *x.get_unchecked(index) });
-                                        triangle_pos_buffer.push(unsafe{ *y.get_unchecked(index) });
-                                        triangle_pos_buffer.push(unsafe{ *z.get_unchecked(index) });
+                                        triangle[0] = unsafe{ *x.get_unchecked(index) };
+                                        triangle[1] = unsafe{ *y.get_unchecked(index) };
+                                        triangle[2] = unsafe{ *z.get_unchecked(index) };
                                     }
                                 }else{
                                     let mut position = sub_mesh.vertices.position.thin_iter();
                                     num_triangles_in_submesh = sub_mesh.vertices.len as usize / 3;
-                                    for _ in 0..sub_mesh.vertices.len {
+                                    for triangle in triangle_pos_buffer.chunks_mut(3)
+                                        .take(sub_mesh.vertices.len as usize)
+                                    {
                                         let pos = unsafe{ position.next() };
-                                        triangle_pos_buffer.push(pos.x);
-                                        triangle_pos_buffer.push(pos.y);
-                                        triangle_pos_buffer.push(pos.z);
+                                        triangle[0] = pos.x;
+                                        triangle[1] = pos.y;
+                                        triangle[2] = pos.z;
                                     }
                                 }
-                                triangle_object_id_buffer[triangle_offset .. triangle_offset + num_triangles_in_submesh]
+                                bytemuck::cast_slice_mut(triangle_object_id_buffer)[triangle_offset .. triangle_offset + num_triangles_in_submesh]
                                     .fill(sub_mesh.object_id);
                             }
 
@@ -1235,7 +1248,7 @@ macro_rules! impl_parser {
                             tri_pos: {
                                 if let Some(tri_pos) = possible_buffers.tri_pos {
                                     let id = buffers.len();
-                                    buffers.push(bytemuck::cast_slice(&tri_pos).to_vec());  // TODO: avoid this copy, probably use ArrayBuffers directly here
+                                    buffers.push(tri_pos);
                                     id as i8
                                 }else{
                                     -1
@@ -1244,7 +1257,7 @@ macro_rules! impl_parser {
                             tri_id: {
                                 if let Some(tri_id) = possible_buffers.tri_id {
                                     let id = buffers.len();
-                                    buffers.push(bytemuck::cast_slice(&tri_id).to_vec()); // TODO: avoid this copy, probably use ArrayBuffers directly here
+                                    buffers.push(tri_id);
                                     id as i8
                                 }else{
                                     -1
