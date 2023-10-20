@@ -917,8 +917,8 @@ macro_rules! impl_parser {
                         material_type,
                         primitive_type,
                         attributes,
-                        num_deviations: num_deviations,
-                        child_index: child_index,
+                        num_deviations,
+                        child_index,
                     }).or_insert_with(|| Group {
                         material_type,
                         primitive_type,
