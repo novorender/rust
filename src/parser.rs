@@ -882,10 +882,6 @@ macro_rules! impl_parser {
             }
 
             pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
-                // TODO: This is only to check if there's a global indices buffer but maybe just
-                // check sub_mesh.indices.is_empty()
-                let vertex_index = &self.vertex_index;
-
                 let mut sub_meshes = vec![];
                 let mut referenced_textures = HashMap::new();
 
@@ -996,7 +992,7 @@ macro_rules! impl_parser {
 
                     let index_buffer_bytes_per_element;
                     let mut index_buffer;
-                     if vertex_index.is_some() {
+                     if num_indices != 0 {
                         let bytes_per_element = if num_vertices < u16::MAX as usize {
                             size_of::<u16>()
                         }else{
@@ -1079,7 +1075,7 @@ macro_rules! impl_parser {
                             if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
                                 = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
                             {
-                                if vertex_index.is_some() && index_buffer.is_some() {
+                                if index_buffer.is_some() {
                                     num_triangles_in_submesh = sub_mesh.indices.len() / 3;
                                     let (x, y ,z) = (
                                         sub_mesh.vertices.position.x,
