@@ -112,8 +112,12 @@ impl Schema {
         js_value.into()
     }
 
+    pub fn create_highlights(&self, indices: Vec<u8>) -> Highlights {
+        Highlights { indices }
+    }
+
     // Array<Array> contains 2 Arrays, first is the vertex buffer, the other the textures
-    pub fn geometry(&self, enable_outlines: bool) -> NodeGeometry {
+    pub fn geometry(&self, enable_outlines: bool, apply_filter: bool, highlights: Highlights) -> NodeGeometry {
         #[cfg(feature="memory-monitor")]
         log!("Currently allocated: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
 
@@ -143,8 +147,8 @@ impl Schema {
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
                 let (sub_meshes, textures) = schema.geometry(
                     enable_outlines,
-                    Highlights{indices: &[]},
-                    |_| true
+                    &highlights,
+                    |object_id| !apply_filter || highlights.indices[object_id as usize] != u8::MAX
                 );
                 let sub_meshes: Array = sub_meshes
                     .into_iter()
@@ -164,8 +168,8 @@ impl Schema {
                 let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
                 let (sub_meshes, index) = schema.geometry(
                     enable_outlines,
-                    Highlights{indices: &[]},
-                    |_| true
+                    &highlights,
+                    |object_id| !apply_filter || highlights.indices[object_id as usize] != u8::MAX
                 );
                 let sub_meshes: Array = sub_meshes
                     .into_iter()

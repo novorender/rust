@@ -221,9 +221,9 @@ fn test_to_hex() {
     assert_eq!(to_hex(&[1, 2, 15, 3]), "01020F03")
 }
 
-pub struct Highlights<'a> {
-    pub indices: &'a [u8],
-    // mutex
+#[wasm_bindgen]
+pub struct Highlights {
+    pub(crate) indices: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -881,7 +881,7 @@ macro_rules! impl_parser {
                 })
             }
 
-            pub fn geometry(&self, enable_outlines: bool, highlights: Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
+            pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
                 // TODO: This is only to check if there's a global indices buffer but maybe just
                 // check sub_mesh.indices.is_empty()
                 let vertex_index = &self.vertex_index;
@@ -932,10 +932,6 @@ macro_rules! impl_parser {
                     });
                     group.group_meshes.push(sub_mesh);
                 }
-
-                // TODO: we don't want highlights to change during parsing, so we hold the lock for the entire file
-                // most probably it won't be needed as this is a copy of the original in js anyway?
-                // highlights.mutex.lock()
 
                 for Group {
                     material_type,
@@ -1354,8 +1350,6 @@ macro_rules! impl_parser {
                         draw_ranges: Some(draw_ranges),
                     })
                 }
-
-                // TODO: highlights.mutex.unlock()
 
                 let mut textures = vec![None; self.texture_info.len as usize];
                 for (index, reference) in referenced_textures {
