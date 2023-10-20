@@ -24,6 +24,7 @@ pub mod range;
 pub mod parser;
 pub mod ktx;
 pub mod interleaved;
+mod gl_bindings;
 
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
