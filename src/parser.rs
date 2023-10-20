@@ -356,11 +356,10 @@ pub enum Indices {
     NumIndices(u32),
 }
 
-
+// substitute with macro_rules! ... to get proper autcomplete on the implementation
 // use crate::types_2_0::*;
 // use crate::reader_2_0::*;
 // use _2_0::*;
-// use crate::parser::*;
 
 macro_rules! impl_parser {
     ($version: ident, $child_ty: ty $(, $child_extra_fields: ident)*) => { paste::paste! {
