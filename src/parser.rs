@@ -542,152 +542,49 @@ macro_rules! impl_parser {
             }
         }
 
-        impl<'a> Int8_3Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [i8], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<i8>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<i8>(), 0);
-
-
-                let offset = byte_offset / size_of::<i8>();
-                let stride = byte_stride / size_of::<i8>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    2 => self.z.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> Int16_3Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [i16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<i16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<i16>(), 0);
-
-
-                let offset = byte_offset / size_of::<i16>();
-                let stride = byte_stride / size_of::<i16>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    2 => self.z.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> RgbaU8Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [u8], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<u8>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<u8>(), 0);
-
-
-                let offset = byte_offset / size_of::<u8>();
-                let stride = byte_stride / size_of::<u8>();
-
-                let mut src = match component {
-                    0 => self.red.thin_iter(),
-                    1 => self.green.thin_iter(),
-                    2 => self.blue.thin_iter(),
-                    3 => self.alpha.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> Half2Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
-
-
-                let offset = byte_offset / size_of::<f16>();
-                let stride = byte_stride / size_of::<f16>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> DeviationsSlice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
-
-
-                let offset = byte_offset / size_of::<f16>();
-                let stride = byte_stride / size_of::<f16>();
-
-                let mut src = match component {
-                    0 => self.a.unwrap().thin_iter(),
-                    1 => self.b.unwrap().thin_iter(),
-                    2 => self.c.unwrap().thin_iter(),
-                    3 => self.d.unwrap().thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
         impl<'a> VertexSlice<'a> {
-            fn copy_attribute_to_interleaved_array(&self, dst: &mut [u8], attribute: Attribute, component: u32, byte_offset: usize, byte_stride: usize) {
+            fn copy_attribute_to_interleaved_array(&self, dst: &mut [u8], attribute: Attribute, num_deviations: u8, byte_offset: usize, byte_stride: usize) {
                 match attribute {
                     Attribute::Position => unreachable!(),
                     Attribute::Normal => if let Some(normal) = &self.normal {
-                        normal.copy_to_interleaved_array(
+                        interleave_three(
                             bytemuck::cast_slice_mut(dst),
-                            component,
+                            normal.x.thin_iter(),
+                            normal.y.thin_iter(),
+                            normal.z.thin_iter(),
                             byte_offset,
                             byte_stride,
                             self.len as usize
                         )
                     },
                     Attribute::Color => if let Some(color) = &self.color {
-                        color.copy_to_interleaved_array(
+                        interleave_four(
                             bytemuck::cast_slice_mut(dst),
-                            component,
+                            color.red.thin_iter(),
+                            color.green.thin_iter(),
+                            color.blue.thin_iter(),
+                            color.alpha.thin_iter(),
                             byte_offset,
                             byte_stride,
                             self.len as usize
                         )
                     },
                     Attribute::TexCoord => if let Some(tex_coord) = &self.tex_coord {
-                        tex_coord.copy_to_interleaved_array(
+                        interleave_two(
                             bytemuck::cast_slice_mut(dst),
-                            component,
+                            tex_coord.x.thin_iter(),
+                            tex_coord.y.thin_iter(),
                             byte_offset,
                             byte_stride,
                             self.len as usize
                         )
                     },
                     Attribute::ProjectedPos => if let Some(projected_pos) = &self.projected_pos {
-                        projected_pos.copy_to_interleaved_array(
+                        interleave_three(
                             bytemuck::cast_slice_mut(dst),
-                            component,
+                            projected_pos.x.thin_iter(),
+                            projected_pos.y.thin_iter(),
+                            projected_pos.z.thin_iter(),
                             byte_offset,
                             byte_stride,
                             self.len as usize
@@ -695,13 +592,43 @@ macro_rules! impl_parser {
                     },
                     Attribute::MaterialIndex => unreachable!(),
                     Attribute::ObjectId => unreachable!(),
-                    Attribute::Deviations => self.deviations.copy_to_interleaved_array(
-                        bytemuck::cast_slice_mut(dst),
-                        component,
-                        byte_offset,
-                        byte_stride,
-                        self.len as usize
-                    ),
+                    Attribute::Deviations => match num_deviations {
+                        1 => interleave_one(
+                            bytemuck::cast_slice_mut(dst),
+                            self.deviations.a.unwrap().thin_iter(),
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        ),
+                        2 => interleave_two(
+                            bytemuck::cast_slice_mut(dst),
+                            self.deviations.a.unwrap().thin_iter(),
+                            self.deviations.b.unwrap().thin_iter(),
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        ),
+                        3 => interleave_three(
+                            bytemuck::cast_slice_mut(dst),
+                            self.deviations.a.unwrap().thin_iter(),
+                            self.deviations.b.unwrap().thin_iter(),
+                            self.deviations.c.unwrap().thin_iter(),
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        ),
+                        4 => interleave_four(
+                            bytemuck::cast_slice_mut(dst),
+                            self.deviations.a.unwrap().thin_iter(),
+                            self.deviations.b.unwrap().thin_iter(),
+                            self.deviations.c.unwrap().thin_iter(),
+                            self.deviations.d.unwrap().thin_iter(),
+                            byte_offset,
+                            byte_stride,
+                            self.len as usize
+                        ),
+                        _ => (),
+                    }
                 }
             }
         }
@@ -1029,38 +956,34 @@ macro_rules! impl_parser {
                             .chain(has_materials.then_some(Attribute::MaterialIndex))
                             .chain(has_object_ids.then_some(Attribute::ObjectId))
                         {
-                            let num_components = attrib.num_components(*num_deviations) as usize;
-                            let bytes_per_element = attrib.bytes_per_element();
                             let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
-                            for c in 0..num_components {
-                                let offset = attrib_offsets[attrib] as usize + c * bytes_per_element;
-                                match attrib {
-                                    Attribute::MaterialIndex =>
-                                        fill_to_interleaved_array(
-                                            bytemuck::cast_slice_mut(dst),
-                                            sub_mesh.material_index,
-                                            offset,
-                                            vertex_stride,
-                                            0,
-                                            sub_mesh.vertices.len as usize,
-                                        ),
-                                    Attribute::ObjectId =>
-                                        fill_to_interleaved_array(
-                                            bytemuck::cast_slice_mut(dst),
-                                            sub_mesh.object_id,
-                                            offset,
-                                            vertex_stride,
-                                            0,
-                                            sub_mesh.vertices.len as usize,
-                                        ),
-                                    _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
-                                        dst,
-                                        attrib,
-                                        c as u32,
+                            let offset = attrib_offsets[attrib] as usize;
+                            match attrib {
+                                Attribute::MaterialIndex =>
+                                    fill_to_interleaved_array(
+                                        bytemuck::cast_slice_mut(dst),
+                                        sub_mesh.material_index,
                                         offset,
-                                        vertex_stride
-                                    )
-                                }
+                                        vertex_stride,
+                                        0,
+                                        sub_mesh.vertices.len as usize,
+                                    ),
+                                Attribute::ObjectId =>
+                                    fill_to_interleaved_array(
+                                        bytemuck::cast_slice_mut(dst),
+                                        sub_mesh.object_id,
+                                        offset,
+                                        vertex_stride,
+                                        0,
+                                        sub_mesh.vertices.len as usize,
+                                    ),
+                                _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
+                                    dst,
+                                    attrib,
+                                    *num_deviations,
+                                    offset,
+                                    vertex_stride
+                                )
                             }
                         }
 
@@ -1101,30 +1024,13 @@ macro_rules! impl_parser {
                                 .fill(sub_mesh.object_id);
                         }
 
-                        copy_to_interleaved_array::<i16>(
+                        interleave_three::<i16>(
                             bytemuck::cast_slice_mut(&mut position_buffer),
-                            unsafe{ sub_mesh.vertices.position.x.as_slice(sub_mesh.vertices.len) },
-                            vertex_offset * position_stride + 0,
+                            sub_mesh.vertices.position.x.thin_iter(),
+                            sub_mesh.vertices.position.y.thin_iter(),
+                            sub_mesh.vertices.position.z.thin_iter(),
+                            vertex_offset * position_stride,
                             position_stride,
-                            0,
-                            sub_mesh.vertices.len as usize,
-                        );
-
-                        copy_to_interleaved_array::<i16>(
-                            bytemuck::cast_slice_mut(&mut position_buffer),
-                            unsafe{ sub_mesh.vertices.position.y.as_slice(sub_mesh.vertices.len) },
-                            vertex_offset * position_stride + 2,
-                            position_stride,
-                            0,
-                            sub_mesh.vertices.len as usize,
-                        );
-
-                        copy_to_interleaved_array::<i16>(
-                            bytemuck::cast_slice_mut(&mut position_buffer),
-                            unsafe{ sub_mesh.vertices.position.z.as_slice(sub_mesh.vertices.len) },
-                            vertex_offset * position_stride + 4,
-                            position_stride,
-                            0,
                             sub_mesh.vertices.len as usize,
                         );
 

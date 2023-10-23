@@ -1,5 +1,7 @@
 use std::mem::size_of;
 
+use crate::thin_slice::{ThinSliceIter, ThinSliceIterator};
+
 pub fn copy_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: &[T], byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
     debug_assert_eq!(byte_offset % size_of::<T>(), 0);
     debug_assert_eq!(byte_stride % size_of::<T>(), 0);
@@ -12,7 +14,6 @@ pub fn copy_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: &[T]
     }
 }
 
-
 pub fn fill_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: T, byte_offset: usize, byte_stride: usize, begin: usize, end: usize) {
     debug_assert_eq!(byte_offset % size_of::<T>(), 0);
     debug_assert_eq!(byte_stride % size_of::<T>(), 0);
@@ -24,6 +25,60 @@ pub fn fill_to_interleaved_array<T: Copy + Send + Sync>(dst: &mut [T], src: T, b
 
     for dst in dst[offset..end].iter_mut().step_by(stride) {
         *dst = src;
+    }
+}
+
+pub fn interleave_one<T: Copy + 'static>(dst: &mut[T], mut src0: ThinSliceIter<T>, byte_offset: usize, byte_stride: usize, len: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
+        *dst = unsafe{ *src0.next() };
+    }
+}
+
+pub fn interleave_two<T: Copy + 'static>(dst: &mut[T], mut src0: ThinSliceIter<T>, mut src1: ThinSliceIter<T>, byte_offset: usize, byte_stride: usize, len: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for dst in dst[offset..].chunks_mut(stride).take(len) {
+        dst[0] = unsafe{ *src0.next() };
+        dst[1] = unsafe{ *src1.next() };
+    }
+}
+
+pub fn interleave_three<T: Copy + 'static>(dst: &mut[T], mut src0: ThinSliceIter<T>, mut src1: ThinSliceIter<T>, mut src2: ThinSliceIter<T>, byte_offset: usize, byte_stride: usize, len: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for dst in dst[offset..].chunks_mut(stride).take(len) {
+        dst[0] = unsafe{ *src0.next() };
+        dst[1] = unsafe{ *src1.next() };
+        dst[2] = unsafe{ *src2.next() };
+    }
+}
+
+pub fn interleave_four<T: Copy + 'static>(dst: &mut[T], mut src0: ThinSliceIter<T>, mut src1: ThinSliceIter<T>, mut src2: ThinSliceIter<T>, mut src3: ThinSliceIter<T>, byte_offset: usize, byte_stride: usize, len: usize) {
+    debug_assert_eq!(byte_offset % size_of::<T>(), 0);
+    debug_assert_eq!(byte_stride % size_of::<T>(), 0);
+
+    let offset = byte_offset / size_of::<T>();
+    let stride = byte_stride / size_of::<T>();
+
+    for dst in dst[offset..].chunks_mut(stride).take(len) {
+        dst[0] = unsafe{ *src0.next() };
+        dst[1] = unsafe{ *src1.next() };
+        dst[2] = unsafe{ *src2.next() };
+        dst[3] = unsafe{ *src3.next() };
     }
 }
 
