@@ -1242,7 +1242,7 @@ macro_rules! impl_parser {
                         highlight_tri: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight_tri, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
                     };
 
-                    object_ranges.sort_by_key(|obj_range| obj_range.object_id);
+                    object_ranges.sort_unstable_by_key(|obj_range| obj_range.object_id);
 
                     sub_meshes.push(ReturnSubMesh{
                         material_type: *material_type,
