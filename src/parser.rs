@@ -854,7 +854,7 @@ macro_rules! impl_parser {
                         material_type,
                         primitive_type,
                         attributes,
-                        num_deviations: num_deviations,
+                        num_deviations,
                         has_materials: false,
                         has_object_ids: false,
                         group_meshes: vec![]
