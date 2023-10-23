@@ -809,7 +809,7 @@ macro_rules! impl_parser {
             }
 
             pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
-                let mut sub_meshes = vec![];
+                let mut sub_meshes = Vec::with_capacity(self.sub_mesh.len as usize);
                 let mut referenced_textures = HashMap::new();
 
                 struct Group<'a> {
@@ -857,7 +857,7 @@ macro_rules! impl_parser {
                         num_deviations,
                         has_materials: false,
                         has_object_ids: false,
-                        group_meshes: vec![]
+                        group_meshes: Vec::with_capacity(self.sub_mesh.len as usize)
                     });
                     group.has_materials |= material_index != u8::MAX;
                     group.has_object_ids |= object_id != u32::MAX;
@@ -1126,7 +1126,7 @@ macro_rules! impl_parser {
                     });
 
                     fn enumerate_buffers(possible_buffers: PossibleBuffers) -> (Vec<Vec<u8>>, BufIndex) {
-                        let mut buffers = vec![];
+                        let mut buffers = Vec::with_capacity(6);
                         let index = BufIndex {
                             primary: {
                                 let id = buffers.len();
