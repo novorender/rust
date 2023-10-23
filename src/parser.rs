@@ -1013,8 +1013,8 @@ macro_rules! impl_parser {
                     let mut index_offset = 0;
                     let mut vertex_offset = 0;
                     let mut triangle_offset = 0;
-                    let mut object_ranges = vec![];
-                    let mut draw_ranges = vec![];
+                    let mut object_ranges = Vec::with_capacity(group_meshes.len());
+                    let mut draw_ranges = Vec::with_capacity(group_meshes.len());
 
                     let draw_range_begin = if index_buffer.is_some() {
                         index_offset
