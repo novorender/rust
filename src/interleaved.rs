@@ -37,8 +37,12 @@ pub fn interleave_one<T: Copy + 'static>(dst: &mut[T], src: &[T], byte_offset: u
     let offset = byte_offset / size_of::<T>();
     let stride = byte_stride / size_of::<T>();
 
-    for (dst, src) in dst[offset..].iter_mut().step_by(stride).zip(src) {
-        *dst = *src;
+    if stride == 1 {
+        dst[offset..offset + src.len()].copy_from_slice(src)
+    }else{
+        for (dst, src) in dst[offset..].iter_mut().step_by(stride).zip(src) {
+            *dst = *src;
+        }
     }
 }
 
