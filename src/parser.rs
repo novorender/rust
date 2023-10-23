@@ -542,90 +542,104 @@ macro_rules! impl_parser {
             }
         }
 
-        impl<'a> VertexSlice<'a> {
-            fn copy_attribute_to_interleaved_array(&self, dst: &mut [u8], attribute: Attribute, num_deviations: u8, byte_offset: usize, byte_stride: usize) {
+        impl<'a> SubMesh<'a> {
+            fn interleave_attribute(&self, dst: &mut [u8], attribute: Attribute, num_deviations: u8, byte_offset: usize, byte_stride: usize) {
+                // SAFETY: all the slices have len self.len so calling as_slice(self.len) is safe
                 match attribute {
-                    Attribute::Position => unreachable!(),
-                    Attribute::Normal => if let Some(normal) = &self.normal {
+                    Attribute::Position => interleave_three::<i16>(
+                        bytemuck::cast_slice_mut(dst),
+                        unsafe{ self.vertices.position.x.as_slice(self.vertices.len) },
+                        unsafe{ self.vertices.position.y.as_slice(self.vertices.len) },
+                        unsafe{ self.vertices.position.z.as_slice(self.vertices.len) },
+                        byte_offset,
+                        byte_stride,
+                    ),
+                    Attribute::Normal => if let Some(normal) = &self.vertices.normal {
                         interleave_three(
                             bytemuck::cast_slice_mut(dst),
-                            normal.x.thin_iter(),
-                            normal.y.thin_iter(),
-                            normal.z.thin_iter(),
+                            unsafe{ normal.x.as_slice(self.vertices.len) },
+                            unsafe{ normal.y.as_slice(self.vertices.len) },
+                            unsafe{ normal.z.as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         )
                     },
-                    Attribute::Color => if let Some(color) = &self.color {
+                    Attribute::Color => if let Some(color) = &self.vertices.color {
                         interleave_four(
                             bytemuck::cast_slice_mut(dst),
-                            color.red.thin_iter(),
-                            color.green.thin_iter(),
-                            color.blue.thin_iter(),
-                            color.alpha.thin_iter(),
+                            unsafe{ color.red.as_slice(self.vertices.len) },
+                            unsafe{ color.green.as_slice(self.vertices.len) },
+                            unsafe{ color.blue.as_slice(self.vertices.len) },
+                            unsafe{ color.alpha.as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         )
                     },
-                    Attribute::TexCoord => if let Some(tex_coord) = &self.tex_coord {
+                    Attribute::TexCoord => if let Some(tex_coord) = &self.vertices.tex_coord {
                         interleave_two(
                             bytemuck::cast_slice_mut(dst),
-                            tex_coord.x.thin_iter(),
-                            tex_coord.y.thin_iter(),
+                            unsafe{ tex_coord.x.as_slice(self.vertices.len) },
+                            unsafe{ tex_coord.y.as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         )
                     },
-                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.projected_pos {
+                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.vertices.projected_pos {
                         interleave_three(
                             bytemuck::cast_slice_mut(dst),
-                            projected_pos.x.thin_iter(),
-                            projected_pos.y.thin_iter(),
-                            projected_pos.z.thin_iter(),
+                            unsafe{ projected_pos.x.as_slice(self.vertices.len) },
+                            unsafe{ projected_pos.y.as_slice(self.vertices.len) },
+                            unsafe{ projected_pos.z.as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         )
                     },
-                    Attribute::MaterialIndex => unreachable!(),
-                    Attribute::ObjectId => unreachable!(),
+                    Attribute::MaterialIndex => fill_to_interleaved_array(
+                        bytemuck::cast_slice_mut(dst),
+                        self.material_index,
+                        byte_offset,
+                        byte_stride,
+                        0,
+                        self.vertices.len as usize,
+                    ),
+                    Attribute::ObjectId => fill_to_interleaved_array(
+                        bytemuck::cast_slice_mut(dst),
+                        self.object_id,
+                        byte_offset,
+                        byte_stride,
+                        0,
+                        self.vertices.len as usize,
+                    ),
                     Attribute::Deviations => match num_deviations {
                         1 => interleave_one(
                             bytemuck::cast_slice_mut(dst),
-                            self.deviations.a.unwrap().thin_iter(),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         ),
                         2 => interleave_two(
                             bytemuck::cast_slice_mut(dst),
-                            self.deviations.a.unwrap().thin_iter(),
-                            self.deviations.b.unwrap().thin_iter(),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         ),
                         3 => interleave_three(
                             bytemuck::cast_slice_mut(dst),
-                            self.deviations.a.unwrap().thin_iter(),
-                            self.deviations.b.unwrap().thin_iter(),
-                            self.deviations.c.unwrap().thin_iter(),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.c.unwrap().as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         ),
                         4 => interleave_four(
                             bytemuck::cast_slice_mut(dst),
-                            self.deviations.a.unwrap().thin_iter(),
-                            self.deviations.b.unwrap().thin_iter(),
-                            self.deviations.c.unwrap().thin_iter(),
-                            self.deviations.d.unwrap().thin_iter(),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.c.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.d.unwrap().as_slice(self.vertices.len) },
                             byte_offset,
                             byte_stride,
-                            self.len as usize
                         ),
                         _ => (),
                     }
@@ -966,33 +980,13 @@ macro_rules! impl_parser {
                         {
                             let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
                             let offset = attrib_offsets[attrib] as usize;
-                            match attrib {
-                                Attribute::MaterialIndex =>
-                                    fill_to_interleaved_array(
-                                        bytemuck::cast_slice_mut(dst),
-                                        sub_mesh.material_index,
-                                        offset,
-                                        vertex_stride,
-                                        0,
-                                        sub_mesh.vertices.len as usize,
-                                    ),
-                                Attribute::ObjectId =>
-                                    fill_to_interleaved_array(
-                                        bytemuck::cast_slice_mut(dst),
-                                        sub_mesh.object_id,
-                                        offset,
-                                        vertex_stride,
-                                        0,
-                                        sub_mesh.vertices.len as usize,
-                                    ),
-                                _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
-                                    dst,
-                                    attrib,
-                                    *num_deviations,
-                                    offset,
-                                    vertex_stride
-                                )
-                            }
+                            sub_mesh.interleave_attribute(
+                                dst,
+                                attrib,
+                                *num_deviations,
+                                offset,
+                                vertex_stride
+                            )
                         }
 
                         let mut num_triangles_in_submesh = 0;
@@ -1032,14 +1026,12 @@ macro_rules! impl_parser {
                                 .fill(sub_mesh.object_id);
                         }
 
-                        interleave_three::<i16>(
-                            bytemuck::cast_slice_mut(&mut position_buffer),
-                            sub_mesh.vertices.position.x.thin_iter(),
-                            sub_mesh.vertices.position.y.thin_iter(),
-                            sub_mesh.vertices.position.z.thin_iter(),
+                        sub_mesh.interleave_attribute(
+                            &mut position_buffer,
+                            Attribute::Position,
+                            *num_deviations,
                             vertex_offset * position_stride,
                             position_stride,
-                            sub_mesh.vertices.len as usize,
                         );
 
 
