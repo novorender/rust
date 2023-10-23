@@ -952,12 +952,6 @@ macro_rules! impl_parser {
                     );
                     let vertex_stride = attrib_offsets.stride as usize;
 
-                    let mut child_indices = group_meshes.iter()
-                        .map(|mesh| mesh.child_index)
-                        .collect::<Vec<_>>();
-                    child_indices.sort_unstable();
-                    child_indices.dedup();
-
                     let mut num_vertices = 0;
                     let mut num_indices = 0;
                     let mut num_triangles = 0;
@@ -1022,210 +1016,200 @@ macro_rules! impl_parser {
                     let mut object_ranges = vec![];
                     let mut draw_ranges = vec![];
 
-                    for child_index in child_indices {
-                        let has_meshes = group_meshes.iter()
-                            .any(|mesh| mesh.child_index == child_index);
-                        if !has_meshes {
-                            continue
-                        }
+                    let draw_range_begin = if index_buffer.is_some() {
+                        index_offset
+                    } else {
+                        vertex_offset
+                    };
 
-                        let draw_range_begin = if index_buffer.is_some() {
-                            index_offset
-                        } else {
-                            vertex_offset
-                        };
-
-                        for sub_mesh in group_meshes.iter()
-                            .filter(|sub_mesh| sub_mesh.child_index == child_index)
+                    for sub_mesh in group_meshes.iter() {
+                        for attrib in attributes.iter()
+                            .map(|attribute| attribute.into())
+                            .chain((*num_deviations > 0).then_some(Attribute::Deviations))
+                            .chain(has_materials.then_some(Attribute::MaterialIndex))
+                            .chain(has_object_ids.then_some(Attribute::ObjectId))
                         {
-                            for attrib in attributes.iter()
-                                .map(|attribute| attribute.into())
-                                .chain((*num_deviations > 0).then_some(Attribute::Deviations))
-                                .chain(has_materials.then_some(Attribute::MaterialIndex))
-                                .chain(has_object_ids.then_some(Attribute::ObjectId))
-                            {
-                                let num_components = attrib.num_components(*num_deviations) as usize;
-                                let bytes_per_element = attrib.bytes_per_element();
-                                let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
-                                for c in 0..num_components {
-                                    let offset = attrib_offsets[attrib] as usize + c * bytes_per_element;
-                                    match attrib {
-                                        Attribute::MaterialIndex =>
-                                            fill_to_interleaved_array(
-                                                bytemuck::cast_slice_mut(dst),
-                                                sub_mesh.material_index,
-                                                offset,
-                                                vertex_stride,
-                                                0,
-                                                sub_mesh.vertices.len as usize,
-                                            ),
-                                        Attribute::ObjectId =>
-                                            fill_to_interleaved_array(
-                                                bytemuck::cast_slice_mut(dst),
-                                                sub_mesh.object_id,
-                                                offset,
-                                                vertex_stride,
-                                                0,
-                                                sub_mesh.vertices.len as usize,
-                                            ),
-                                        _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
-                                            dst,
-                                            attrib,
-                                            c as u32,
+                            let num_components = attrib.num_components(*num_deviations) as usize;
+                            let bytes_per_element = attrib.bytes_per_element();
+                            let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
+                            for c in 0..num_components {
+                                let offset = attrib_offsets[attrib] as usize + c * bytes_per_element;
+                                match attrib {
+                                    Attribute::MaterialIndex =>
+                                        fill_to_interleaved_array(
+                                            bytemuck::cast_slice_mut(dst),
+                                            sub_mesh.material_index,
                                             offset,
-                                            vertex_stride
-                                        )
-                                    }
+                                            vertex_stride,
+                                            0,
+                                            sub_mesh.vertices.len as usize,
+                                        ),
+                                    Attribute::ObjectId =>
+                                        fill_to_interleaved_array(
+                                            bytemuck::cast_slice_mut(dst),
+                                            sub_mesh.object_id,
+                                            offset,
+                                            vertex_stride,
+                                            0,
+                                            sub_mesh.vertices.len as usize,
+                                        ),
+                                    _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
+                                        dst,
+                                        attrib,
+                                        c as u32,
+                                        offset,
+                                        vertex_stride
+                                    )
                                 }
                             }
-
-                            let mut num_triangles_in_submesh = 0;
-                            if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
-                                = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
-                            {
-                                let triangle_pos_buffer = &mut bytemuck::cast_slice_mut(triangle_pos_buffer)[triangle_offset ..];
-                                if index_buffer.is_some() {
-                                    num_triangles_in_submesh = sub_mesh.indices.len() / 3;
-                                    let (x, y ,z) = (
-                                        sub_mesh.vertices.position.x,
-                                        sub_mesh.vertices.position.y,
-                                        sub_mesh.vertices.position.z
-                                    );
-                                    for (index, triangle) in sub_mesh.indices.iter()
-                                        .zip(triangle_pos_buffer.chunks_mut(3))
-                                    {
-                                        let index = *index as usize;
-                                        // TODO: Add support for triangle strips and fans as well...
-                                        triangle[0] = unsafe{ *x.get_unchecked(index) };
-                                        triangle[1] = unsafe{ *y.get_unchecked(index) };
-                                        triangle[2] = unsafe{ *z.get_unchecked(index) };
-                                    }
-                                }else{
-                                    let mut position = sub_mesh.vertices.position.thin_iter();
-                                    num_triangles_in_submesh = sub_mesh.vertices.len as usize / 3;
-                                    for triangle in triangle_pos_buffer.chunks_mut(3)
-                                        .take(sub_mesh.vertices.len as usize)
-                                    {
-                                        let pos = unsafe{ position.next() };
-                                        triangle[0] = pos.x;
-                                        triangle[1] = pos.y;
-                                        triangle[2] = pos.z;
-                                    }
-                                }
-                                bytemuck::cast_slice_mut(triangle_object_id_buffer)[triangle_offset .. triangle_offset + num_triangles_in_submesh]
-                                    .fill(sub_mesh.object_id);
-                            }
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.x.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 0,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.y.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 2,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.z.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 4,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-
-                            // initialize index buffer (if any)
-                            if let Some(index_buffer) = &mut index_buffer {
-                                if num_vertices > u16::MAX as usize {
-                                    for (dst, src) in bytemuck::cast_slice_mut::<_, u32>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                        .iter_mut()
-                                        .zip(sub_mesh.indices)
-                                    {
-                                        *dst = *src as u32 + vertex_offset as u32
-                                    }
-                                }else{
-                                    for (dst, src) in bytemuck::cast_slice_mut::<_, u16>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                        .iter_mut()
-                                        .zip(sub_mesh.indices)
-                                    {
-                                        *dst = *src + vertex_offset as u16
-                                    }
-                                }
-                                index_offset += sub_mesh.indices.len();
-                            }
-
-                            // initialize highlight buffer
-                            let highlight_index = highlights.indices
-                                .get(sub_mesh.object_id as usize)
-                                .copied();
-                            let sub_mesh_end_vertex = vertex_offset + sub_mesh.vertices.len as usize;
-                            let sub_mesh_end_triangle = triangle_offset + sub_mesh.indices.len() as usize / 3;
-                            if let Some(highlight_index) = highlight_index {
-                                highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
-                                    .fill(highlight_index);
-                                if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
-                                    highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
-                                        .fill(highlight_index);
-                                }
-                            }
-
-                            // update object ranges
-                            let mut new_range = true;
-                            if let Some(MeshObjectRange {
-                                object_id,
-                                end_vertex,
-                                end_triangle,
-                                ..
-                            }) = object_ranges.last_mut() {
-                                if *object_id == sub_mesh.object_id {
-                                    *end_vertex = sub_mesh_end_vertex;
-                                    *end_triangle = sub_mesh_end_triangle;
-                                    new_range = false;
-                                }
-                            }
-
-                            if new_range {
-                                object_ranges.push(MeshObjectRange {
-                                    object_id: sub_mesh.object_id,
-                                    begin_vertex: vertex_offset,
-                                    end_vertex: sub_mesh_end_vertex,
-                                    begin_triangle: triangle_offset,
-                                    end_triangle: sub_mesh_end_triangle,
-                                })
-                            }
-
-                            triangle_offset += num_triangles_in_submesh;
-                            vertex_offset += sub_mesh.vertices.len as usize;
                         }
 
-                        let draw_range_end = if index_buffer.is_some() {
-                            index_offset
-                        }else{
-                            vertex_offset
-                        };
-                        let byte_offset = draw_range_begin * if let Some(bytes_per_element) = index_buffer_bytes_per_element {
-                            bytes_per_element
-                        }else{
-                            vertex_stride
-                        };
-                        let count = draw_range_end - draw_range_begin;
-                        draw_ranges.push(DrawRange {
-                            child_index,
-                            byte_offset,
-                            first: draw_range_begin,
-                            count
-                        });
+                        let mut num_triangles_in_submesh = 0;
+                        if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
+                            = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
+                        {
+                            let triangle_pos_buffer = &mut bytemuck::cast_slice_mut(triangle_pos_buffer)[triangle_offset ..];
+                            if index_buffer.is_some() {
+                                num_triangles_in_submesh = sub_mesh.indices.len() / 3;
+                                let (x, y ,z) = (
+                                    sub_mesh.vertices.position.x,
+                                    sub_mesh.vertices.position.y,
+                                    sub_mesh.vertices.position.z
+                                );
+                                for (index, triangle) in sub_mesh.indices.iter()
+                                    .zip(triangle_pos_buffer.chunks_mut(3))
+                                {
+                                    let index = *index as usize;
+                                    // TODO: Add support for triangle strips and fans as well...
+                                    triangle[0] = unsafe{ *x.get_unchecked(index) };
+                                    triangle[1] = unsafe{ *y.get_unchecked(index) };
+                                    triangle[2] = unsafe{ *z.get_unchecked(index) };
+                                }
+                            }else{
+                                let mut position = sub_mesh.vertices.position.thin_iter();
+                                num_triangles_in_submesh = sub_mesh.vertices.len as usize / 3;
+                                for triangle in triangle_pos_buffer.chunks_mut(3)
+                                    .take(sub_mesh.vertices.len as usize)
+                                {
+                                    let pos = unsafe{ position.next() };
+                                    triangle[0] = pos.x;
+                                    triangle[1] = pos.y;
+                                    triangle[2] = pos.z;
+                                }
+                            }
+                            bytemuck::cast_slice_mut(triangle_object_id_buffer)[triangle_offset .. triangle_offset + num_triangles_in_submesh]
+                                .fill(sub_mesh.object_id);
+                        }
+
+                        copy_to_interleaved_array::<i16>(
+                            bytemuck::cast_slice_mut(&mut position_buffer),
+                            unsafe{ sub_mesh.vertices.position.x.as_slice(sub_mesh.vertices.len) },
+                            vertex_offset * position_stride + 0,
+                            position_stride,
+                            0,
+                            sub_mesh.vertices.len as usize,
+                        );
+
+                        copy_to_interleaved_array::<i16>(
+                            bytemuck::cast_slice_mut(&mut position_buffer),
+                            unsafe{ sub_mesh.vertices.position.y.as_slice(sub_mesh.vertices.len) },
+                            vertex_offset * position_stride + 2,
+                            position_stride,
+                            0,
+                            sub_mesh.vertices.len as usize,
+                        );
+
+                        copy_to_interleaved_array::<i16>(
+                            bytemuck::cast_slice_mut(&mut position_buffer),
+                            unsafe{ sub_mesh.vertices.position.z.as_slice(sub_mesh.vertices.len) },
+                            vertex_offset * position_stride + 4,
+                            position_stride,
+                            0,
+                            sub_mesh.vertices.len as usize,
+                        );
+
+
+                        // initialize index buffer (if any)
+                        if let Some(index_buffer) = &mut index_buffer {
+                            if num_vertices > u16::MAX as usize {
+                                for (dst, src) in bytemuck::cast_slice_mut::<_, u32>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
+                                    .iter_mut()
+                                    .zip(sub_mesh.indices)
+                                {
+                                    *dst = *src as u32 + vertex_offset as u32
+                                }
+                            }else{
+                                for (dst, src) in bytemuck::cast_slice_mut::<_, u16>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
+                                    .iter_mut()
+                                    .zip(sub_mesh.indices)
+                                {
+                                    *dst = *src + vertex_offset as u16
+                                }
+                            }
+                            index_offset += sub_mesh.indices.len();
+                        }
+
+                        // initialize highlight buffer
+                        let highlight_index = highlights.indices
+                            .get(sub_mesh.object_id as usize)
+                            .copied();
+                        let sub_mesh_end_vertex = vertex_offset + sub_mesh.vertices.len as usize;
+                        let sub_mesh_end_triangle = triangle_offset + sub_mesh.indices.len() as usize / 3;
+                        if let Some(highlight_index) = highlight_index {
+                            highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
+                                .fill(highlight_index);
+                            if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
+                                highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
+                                    .fill(highlight_index);
+                            }
+                        }
+
+                        // update object ranges
+                        let mut new_range = true;
+                        if let Some(MeshObjectRange {
+                            object_id,
+                            end_vertex,
+                            end_triangle,
+                            ..
+                        }) = object_ranges.last_mut() {
+                            if *object_id == sub_mesh.object_id {
+                                *end_vertex = sub_mesh_end_vertex;
+                                *end_triangle = sub_mesh_end_triangle;
+                                new_range = false;
+                            }
+                        }
+
+                        if new_range {
+                            object_ranges.push(MeshObjectRange {
+                                object_id: sub_mesh.object_id,
+                                begin_vertex: vertex_offset,
+                                end_vertex: sub_mesh_end_vertex,
+                                begin_triangle: triangle_offset,
+                                end_triangle: sub_mesh_end_triangle,
+                            })
+                        }
+
+                        triangle_offset += num_triangles_in_submesh;
+                        vertex_offset += sub_mesh.vertices.len as usize;
                     }
+
+                    let draw_range_end = if index_buffer.is_some() {
+                        index_offset
+                    }else{
+                        vertex_offset
+                    };
+                    let byte_offset = draw_range_begin * if let Some(bytes_per_element) = index_buffer_bytes_per_element {
+                        bytes_per_element
+                    }else{
+                        vertex_stride
+                    };
+                    let count = draw_range_end - draw_range_begin;
+                    draw_ranges.push(DrawRange {
+                        child_index: group_meshes[0].child_index,
+                        byte_offset,
+                        first: draw_range_begin,
+                        count
+                    });
 
                     fn enumerate_buffers(possible_buffers: PossibleBuffers) -> (Vec<Vec<u8>>, BufIndex) {
                         let mut buffers = vec![];
