@@ -817,7 +817,9 @@ macro_rules! impl_parser {
                     primitive_type: PrimitiveType,
                     attributes: OptionalVertexAttribute,
                     num_deviations: u8,
-                    group_meshes: Vec<SubMesh<'a>>
+                    group_meshes: Vec<SubMesh<'a>>,
+                    has_materials: bool,
+                    has_object_ids: bool,
                 }
 
                 #[derive(Hash, PartialEq, Eq)]
@@ -837,6 +839,8 @@ macro_rules! impl_parser {
                         attributes,
                         num_deviations,
                         child_index,
+                        material_index,
+                        object_id,
                         ..
                     } = sub_mesh;
 
@@ -851,8 +855,12 @@ macro_rules! impl_parser {
                         primitive_type,
                         attributes,
                         num_deviations: num_deviations,
+                        has_materials: false,
+                        has_object_ids: false,
                         group_meshes: vec![]
                     });
+                    group.has_materials |= material_index != u8::MAX;
+                    group.has_object_ids |= object_id != u32::MAX;
                     group.group_meshes.push(sub_mesh);
                 }
 
@@ -861,21 +869,21 @@ macro_rules! impl_parser {
                     primitive_type,
                     attributes,
                     num_deviations,
-                    group_meshes
+                    group_meshes,
+                    has_materials,
+                    has_object_ids,
                 } in groups.values() {
                     if group_meshes.is_empty() {
                         continue
                     }
 
-                    let has_materials = group_meshes.iter().any(|m| m.material_index != u8::MAX);
-                    let has_object_ids = group_meshes.iter().any(|m| m.object_id != u32::MAX);
                     let position_stride = compute_vertex_position_deviations_offsets(*num_deviations).stride as usize;
                     let triangle_pos_stride = position_stride * 3;
                     let attrib_offsets = compute_vertex_attributes_offsets(
                         *attributes,
                         *num_deviations,
-                        has_materials,
-                        has_object_ids
+                        *has_materials,
+                        *has_object_ids
                     );
                     let vertex_stride = attrib_offsets.stride as usize;
 
