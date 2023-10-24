@@ -389,6 +389,8 @@ impl<'a> Iterator for ImageIterator<'a> {
         let buffer = &self.data[.. self.image_stride as usize];
         self.data = &self.data[self.image_stride as usize ..];
         let end = self.data_offset;
+        self.z_slice += 1;
+
         Some(Image {
             mip: self.mip,
             element: self.element,
