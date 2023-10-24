@@ -140,7 +140,7 @@ impl std::ops::IndexMut<Attribute> for Offsets {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Attribute {
     Position,
     Normal,
@@ -681,63 +681,13 @@ macro_rules! impl_parser {
             #[wasm_bindgen(skip)]
             pub vertex_attributes: Option<VertexAttributes>,
             #[wasm_bindgen(skip)]
-            pub vertex_buffers: Vec<Vec<u8>>,
+            pub vertex_buffers: Array,
             #[wasm_bindgen(skip)]
             pub indices: Indices,
             #[wasm_bindgen(js_name = "baseColorTexture")]
             pub base_color_texture: Option<u32>,
             #[wasm_bindgen(skip)]
             pub draw_ranges: Option<Vec<DrawRange>>,
-            buf_index: BufIndex,
-        }
-
-        impl Drop for ReturnSubMesh {
-            fn drop(&mut self) {
-                {
-                    let mut pos = std::mem::replace(&mut self.vertex_buffers[self.buf_index.pos as usize], vec![]);
-                    let ptr = pos.as_mut_ptr();
-                    let len_bytes = pos.len();
-                    let cap_bytes = pos.capacity();
-
-                    std::mem::forget(pos);
-
-                    std::mem::drop(unsafe{ Vec::from_raw_parts(
-                        ptr as *mut i16,
-                        len_bytes / size_of::<i16>(),
-                        cap_bytes / size_of::<i16>(),
-                    )});
-                }
-
-                if self.buf_index.tri_pos >= 0 {
-                    let mut tri_pos = std::mem::replace(&mut self.vertex_buffers[self.buf_index.tri_pos as usize], vec![]);
-                    let ptr = tri_pos.as_mut_ptr();
-                    let len_bytes = tri_pos.len();
-                    let cap_bytes = tri_pos.capacity();
-
-                    std::mem::forget(tri_pos);
-
-                    std::mem::drop(unsafe{ Vec::from_raw_parts(
-                        ptr as *mut i16,
-                        len_bytes / size_of::<i16>(),
-                        cap_bytes / size_of::<i16>(),
-                    )});
-                }
-
-                if self.buf_index.tri_id >= 0 {
-                    let mut tri_id = std::mem::replace(&mut self.vertex_buffers[self.buf_index.tri_id as usize], vec![]);
-                    let ptr = tri_id.as_mut_ptr();
-                    let len_bytes = tri_id.len();
-                    let cap_bytes = tri_id.capacity();
-
-                    std::mem::forget(tri_id);
-
-                    std::mem::drop(unsafe{ Vec::from_raw_parts(
-                        ptr as *mut u32,
-                        len_bytes / size_of::<u32>(),
-                        cap_bytes / size_of::<u32>(),
-                    )});
-                }
-            }
         }
 
         #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
@@ -771,14 +721,7 @@ macro_rules! impl_parser {
             #[wasm_bindgen(getter)]
             #[wasm_bindgen(js_name = "vertexBuffers")]
             pub fn vertex_buffers(&mut self) -> ArrayUint8Array {
-                let array: Array = self.vertex_buffers.iter()
-                    .map(|buffer| {
-                        let typed_array = js_sys::Uint8Array::new_with_length(buffer.len() as u32);
-                        typed_array.copy_from(buffer);
-                        typed_array.buffer()
-                    })
-                    .collect();
-                let js_value: JsValue = array.into();
+                let js_value: JsValue = self.vertex_buffers.clone().into();
                 js_value.into()
             }
 
@@ -1172,77 +1115,50 @@ macro_rules! impl_parser {
                         count
                     });
 
-                    fn enumerate_buffers(possible_buffers: PossibleBuffers) -> (Vec<Vec<u8>>, BufIndex) {
-                        let mut buffers = Vec::with_capacity(6);
+                    fn enumerate_buffers(possible_buffers: PossibleBuffers) -> (Array, BufIndex) {
+                        let buffers = Array::new();
                         let index = BufIndex {
                             primary: {
-                                let id = buffers.len();
-                                buffers.push(possible_buffers.primary);
+                                let id = buffers.length();
+                                let typed_array = js_sys::Uint8Array::new_with_length(possible_buffers.primary.len() as u32);
+                                typed_array.copy_from(&possible_buffers.primary);
+                                buffers.push(&typed_array.buffer().into());
                                 id as i8
                             },
                             highlight: {
-                                let id = buffers.len();
-                                buffers.push(possible_buffers.highlight);
+                                let id = buffers.length();
+                                let typed_array = js_sys::Uint8Array::new_with_length(possible_buffers.highlight.len() as u32);
+                                typed_array.copy_from(&possible_buffers.highlight);
+                                buffers.push(&typed_array.buffer().into());
                                 id as i8
                             },
                             pos: {
-                                let id = buffers.len();
-
-                                let mut pos = possible_buffers.pos;
-                                let ptr = pos.as_mut_ptr();
-                                let len_bytes = pos.len();
-                                let cap_bytes = pos.capacity();
-
-                                std::mem::forget(pos);
-
-                                let pos = unsafe{ Vec::from_raw_parts(
-                                    ptr as *mut u8,
-                                    len_bytes * size_of::<i16>(),
-                                    cap_bytes * size_of::<i16>(),
-                                )};
-
-                                buffers.push(pos);
+                                let id = buffers.length();
+                                let pos = bytemuck::cast_slice(&possible_buffers.pos);
+                                let typed_array = js_sys::Uint8Array::new_with_length(pos.len() as u32);
+                                typed_array.copy_from(pos);
+                                buffers.push(&typed_array.buffer().into());
                                 id as i8
                             },
                             tri_pos: {
-                                if let Some(mut tri_pos) = possible_buffers.tri_pos {
-                                    let id = buffers.len();
-
-                                    let ptr = tri_pos.as_mut_ptr();
-                                    let len_bytes = tri_pos.len();
-                                    let cap_bytes = tri_pos.capacity();
-
-                                    std::mem::forget(tri_pos);
-
-                                    let tri_pos = unsafe{ Vec::from_raw_parts(
-                                        ptr as *mut u8,
-                                        len_bytes * size_of::<i16>(),
-                                        cap_bytes * size_of::<i16>(),
-                                    )};
-
-                                    buffers.push(tri_pos);
+                                if let Some(tri_pos) = possible_buffers.tri_pos {
+                                    let id = buffers.length();
+                                    let tri_pos = bytemuck::cast_slice(&tri_pos);
+                                    let typed_array = js_sys::Uint8Array::new_with_length(tri_pos.len() as u32);
+                                    typed_array.copy_from(tri_pos);
+                                    buffers.push(&typed_array.buffer().into());
                                     id as i8
                                 }else{
                                     -1
                                 }
                             },
                             tri_id: {
-                                if let Some(mut tri_id) = possible_buffers.tri_id {
-                                    let id = buffers.len();
-
-                                    let ptr = tri_id.as_mut_ptr();
-                                    let len_bytes = tri_id.len();
-                                    let cap_bytes = tri_id.capacity();
-
-                                    std::mem::forget(tri_id);
-
-                                    let tri_id = unsafe{ Vec::from_raw_parts(
-                                        ptr as *mut u8,
-                                        len_bytes * size_of::<u32>(),
-                                        cap_bytes * size_of::<u32>(),
-                                    )};
-
-                                    buffers.push(tri_id);
+                                if let Some(tri_id) = possible_buffers.tri_id {
+                                    let id = buffers.length();
+                                    let tri_id = bytemuck::cast_slice(&tri_id);
+                                    let typed_array = js_sys::Uint8Array::new_with_length(tri_id.len() as u32);
+                                    typed_array.copy_from(tri_id);
+                                    buffers.push(&typed_array.buffer().into());
                                     id as i8
                                 }else{
                                     -1
@@ -1250,8 +1166,11 @@ macro_rules! impl_parser {
                             },
                             highlight_tri: {
                                 if let Some(highlight_tri) = possible_buffers.highlight_tri {
-                                    let id = buffers.len();
-                                    buffers.push(highlight_tri);
+                                    let id = buffers.length();
+                                    let highlight_tri = bytemuck::cast_slice(&highlight_tri);
+                                    let typed_array = js_sys::Uint8Array::new_with_length(highlight_tri.len() as u32);
+                                    typed_array.copy_from(highlight_tri);
+                                    buffers.push(&typed_array.buffer().into());
                                     id as i8
                                 }else{
                                     -1
@@ -1356,7 +1275,6 @@ macro_rules! impl_parser {
                         indices,
                         base_color_texture,
                         draw_ranges: Some(draw_ranges),
-                        buf_index,
                     })
                 }
 
