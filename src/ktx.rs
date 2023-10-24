@@ -353,6 +353,7 @@ impl ImageIterator<'_> {
 impl<'a> Iterator for ImageIterator<'a> {
     type Item = Image<'a>;
     fn next(&mut self) -> Option<Self::Item> {
+        self.z_slice += 1;
 
         if self.z_slice == self.depth {
             self.z_slice = 0;
