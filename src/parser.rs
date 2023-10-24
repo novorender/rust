@@ -336,8 +336,8 @@ pub struct VertexAttributes {
 struct PossibleBuffers {
     pos: Vec<u8>,
     primary: Vec<u8>,
-    tri_pos: Option<Vec<i16>>,
-    tri_id: Option<Vec<u32>>,
+    tri_pos: Option<Vec<u8>>,
+    tri_id: Option<Vec<u8>>,
     highlight: Vec<u8>,
     highlight_tri: Option<Vec<u8>>,
 }
@@ -356,11 +356,10 @@ pub enum Indices {
     NumIndices(u32),
 }
 
-
+// substitute with macro_rules! ... to get proper autcomplete on the implementation
 // use crate::types_2_0::*;
 // use crate::reader_2_0::*;
 // use _2_0::*;
-// use crate::parser::*;
 
 macro_rules! impl_parser {
     ($version: ident, $child_ty: ty $(, $child_extra_fields: ident)*) => { paste::paste! {
@@ -543,166 +542,107 @@ macro_rules! impl_parser {
             }
         }
 
-        impl<'a> Int8_3Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [i8], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<i8>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<i8>(), 0);
-
-
-                let offset = byte_offset / size_of::<i8>();
-                let stride = byte_stride / size_of::<i8>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    2 => self.z.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> Int16_3Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [i16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<i16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<i16>(), 0);
-
-
-                let offset = byte_offset / size_of::<i16>();
-                let stride = byte_stride / size_of::<i16>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    2 => self.z.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> RgbaU8Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [u8], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<u8>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<u8>(), 0);
-
-
-                let offset = byte_offset / size_of::<u8>();
-                let stride = byte_stride / size_of::<u8>();
-
-                let mut src = match component {
-                    0 => self.red.thin_iter(),
-                    1 => self.green.thin_iter(),
-                    2 => self.blue.thin_iter(),
-                    3 => self.alpha.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> Half2Slice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
-
-
-                let offset = byte_offset / size_of::<f16>();
-                let stride = byte_stride / size_of::<f16>();
-
-                let mut src = match component {
-                    0 => self.x.thin_iter(),
-                    1 => self.y.thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> DeviationsSlice<'a> {
-            fn copy_to_interleaved_array(&self, dst: &mut [f16], component: u32, byte_offset: usize, byte_stride: usize, len: usize) {
-                debug_assert_eq!(byte_offset % size_of::<f16>(), 0);
-                debug_assert_eq!(byte_stride % size_of::<f16>(), 0);
-
-
-                let offset = byte_offset / size_of::<f16>();
-                let stride = byte_stride / size_of::<f16>();
-
-                let mut src = match component {
-                    0 => self.a.unwrap().thin_iter(),
-                    1 => self.b.unwrap().thin_iter(),
-                    2 => self.c.unwrap().thin_iter(),
-                    3 => self.d.unwrap().thin_iter(),
-                    _ => unreachable!()
-                };
-
-                for dst in dst[offset..].iter_mut().step_by(stride).take(len) {
-                    *dst = unsafe{ *src.next() }
-                }
-            }
-        }
-
-        impl<'a> VertexSlice<'a> {
-            fn copy_attribute_to_interleaved_array(&self, dst: &mut [u8], attribute: Attribute, component: u32, byte_offset: usize, byte_stride: usize) {
+        impl<'a> SubMesh<'a> {
+            fn interleave_attribute(&self, dst: &mut [u8], attribute: Attribute, num_deviations: u8, byte_offset: usize, byte_stride: usize) {
+                // SAFETY: all the slices have len self.len so calling as_slice(self.len) is safe
                 match attribute {
-                    Attribute::Position => unreachable!(),
-                    Attribute::Normal => if let Some(normal) = &self.normal {
-                        normal.copy_to_interleaved_array(
-                            bytemuck::cast_slice_mut(dst),
-                            component,
-                            byte_offset,
-                            byte_stride,
-                            self.len as usize
-                        )
-                    },
-                    Attribute::Color => if let Some(color) = &self.color {
-                        color.copy_to_interleaved_array(
-                            bytemuck::cast_slice_mut(dst),
-                            component,
-                            byte_offset,
-                            byte_stride,
-                            self.len as usize
-                        )
-                    },
-                    Attribute::TexCoord => if let Some(tex_coord) = &self.tex_coord {
-                        tex_coord.copy_to_interleaved_array(
-                            bytemuck::cast_slice_mut(dst),
-                            component,
-                            byte_offset,
-                            byte_stride,
-                            self.len as usize
-                        )
-                    },
-                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.projected_pos {
-                        projected_pos.copy_to_interleaved_array(
-                            bytemuck::cast_slice_mut(dst),
-                            component,
-                            byte_offset,
-                            byte_stride,
-                            self.len as usize
-                        )
-                    },
-                    Attribute::MaterialIndex => unreachable!(),
-                    Attribute::ObjectId => unreachable!(),
-                    Attribute::Deviations => self.deviations.copy_to_interleaved_array(
+                    Attribute::Position => interleave_three::<i16>(
                         bytemuck::cast_slice_mut(dst),
-                        component,
+                        unsafe{ self.vertices.position.x.as_slice(self.vertices.len) },
+                        unsafe{ self.vertices.position.y.as_slice(self.vertices.len) },
+                        unsafe{ self.vertices.position.z.as_slice(self.vertices.len) },
                         byte_offset,
                         byte_stride,
-                        self.len as usize
                     ),
+                    Attribute::Normal => if let Some(normal) = &self.vertices.normal {
+                        interleave_three(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ normal.x.as_slice(self.vertices.len) },
+                            unsafe{ normal.y.as_slice(self.vertices.len) },
+                            unsafe{ normal.z.as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        )
+                    },
+                    Attribute::Color => if let Some(color) = &self.vertices.color {
+                        interleave_four(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ color.red.as_slice(self.vertices.len) },
+                            unsafe{ color.green.as_slice(self.vertices.len) },
+                            unsafe{ color.blue.as_slice(self.vertices.len) },
+                            unsafe{ color.alpha.as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        )
+                    },
+                    Attribute::TexCoord => if let Some(tex_coord) = &self.vertices.tex_coord {
+                        interleave_two(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ tex_coord.x.as_slice(self.vertices.len) },
+                            unsafe{ tex_coord.y.as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        )
+                    },
+                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.vertices.projected_pos {
+                        interleave_three(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ projected_pos.x.as_slice(self.vertices.len) },
+                            unsafe{ projected_pos.y.as_slice(self.vertices.len) },
+                            unsafe{ projected_pos.z.as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        )
+                    },
+                    Attribute::MaterialIndex => fill_to_interleaved_array(
+                        bytemuck::cast_slice_mut(dst),
+                        self.material_index,
+                        byte_offset,
+                        byte_stride,
+                        0,
+                        self.vertices.len as usize,
+                    ),
+                    Attribute::ObjectId => fill_to_interleaved_array(
+                        bytemuck::cast_slice_mut(dst),
+                        self.object_id,
+                        byte_offset,
+                        byte_stride,
+                        0,
+                        self.vertices.len as usize,
+                    ),
+                    Attribute::Deviations => match num_deviations {
+                        1 => interleave_one(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        ),
+                        2 => interleave_two(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        ),
+                        3 => interleave_three(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.c.unwrap().as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        ),
+                        4 => interleave_four(
+                            bytemuck::cast_slice_mut(dst),
+                            unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.b.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.c.unwrap().as_slice(self.vertices.len) },
+                            unsafe{ self.vertices.deviations.d.unwrap().as_slice(self.vertices.len) },
+                            byte_offset,
+                            byte_stride,
+                        ),
+                        _ => (),
+                    }
                 }
             }
         }
@@ -883,11 +823,7 @@ macro_rules! impl_parser {
             }
 
             pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
-                // TODO: This is only to check if there's a global indices buffer but maybe just
-                // check sub_mesh.indices.is_empty()
-                let vertex_index = &self.vertex_index;
-
-                let mut sub_meshes = vec![];
+                let mut sub_meshes = Vec::with_capacity(self.sub_mesh.len as usize);
                 let mut referenced_textures = HashMap::new();
 
                 struct Group<'a> {
@@ -895,7 +831,9 @@ macro_rules! impl_parser {
                     primitive_type: PrimitiveType,
                     attributes: OptionalVertexAttribute,
                     num_deviations: u8,
-                    group_meshes: Vec<SubMesh<'a>>
+                    group_meshes: Vec<SubMesh<'a>>,
+                    has_materials: bool,
+                    has_object_ids: bool,
                 }
 
                 #[derive(Hash, PartialEq, Eq)]
@@ -915,6 +853,8 @@ macro_rules! impl_parser {
                         attributes,
                         num_deviations,
                         child_index,
+                        material_index,
+                        object_id,
                         ..
                     } = sub_mesh;
 
@@ -922,15 +862,19 @@ macro_rules! impl_parser {
                         material_type,
                         primitive_type,
                         attributes,
-                        num_deviations: num_deviations,
-                        child_index: child_index,
+                        num_deviations,
+                        child_index,
                     }).or_insert_with(|| Group {
                         material_type,
                         primitive_type,
                         attributes,
-                        num_deviations: num_deviations,
-                        group_meshes: vec![]
+                        num_deviations,
+                        has_materials: false,
+                        has_object_ids: false,
+                        group_meshes: Vec::with_capacity(self.sub_mesh.len as usize)
                     });
+                    group.has_materials |= material_index != u8::MAX;
+                    group.has_object_ids |= object_id != u32::MAX;
                     group.group_meshes.push(sub_mesh);
                 }
 
@@ -939,29 +883,23 @@ macro_rules! impl_parser {
                     primitive_type,
                     attributes,
                     num_deviations,
-                    group_meshes
+                    group_meshes,
+                    has_materials,
+                    has_object_ids,
                 } in groups.values() {
                     if group_meshes.is_empty() {
                         continue
                     }
 
-                    let has_materials = group_meshes.iter().any(|m| m.material_index != u8::MAX);
-                    let has_object_ids = group_meshes.iter().any(|m| m.object_id != u32::MAX);
                     let position_stride = compute_vertex_position_deviations_offsets(*num_deviations).stride as usize;
                     let triangle_pos_stride = position_stride * 3;
                     let attrib_offsets = compute_vertex_attributes_offsets(
                         *attributes,
                         *num_deviations,
-                        has_materials,
-                        has_object_ids
+                        *has_materials,
+                        *has_object_ids
                     );
                     let vertex_stride = attrib_offsets.stride as usize;
-
-                    let mut child_indices = group_meshes.iter()
-                        .map(|mesh| mesh.child_index)
-                        .collect::<Vec<_>>();
-                    child_indices.sort_unstable();
-                    child_indices.dedup();
 
                     let mut num_vertices = 0;
                     let mut num_indices = 0;
@@ -979,13 +917,21 @@ macro_rules! impl_parser {
                     let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
-                    let mut triangle_pos_buffer;
-                    let mut triangle_object_id_buffer;
+                    let mut triangle_pos_buffer: Option<Vec<u8>>;
+                    let mut triangle_object_id_buffer: Option<Vec<u8>>;
                     let mut highlight_buffer_tri;
                     if enable_outlines && *primitive_type == PrimitiveType::Triangles {
-                        triangle_pos_buffer = Some(Vec::with_capacity(num_triangles * triangle_pos_stride));
-                        triangle_object_id_buffer = Some(vec![0; num_triangles]);
-                        highlight_buffer_tri = Some(vec![0; num_triangles]);
+                        let mut buffer = Vec::with_capacity(num_triangles * triangle_pos_stride * size_of::<i16>());
+                        unsafe{ buffer.set_len(num_triangles * triangle_pos_stride * size_of::<i16>()) };
+                        triangle_pos_buffer = Some(buffer);
+
+                        let mut buffer = Vec::with_capacity(num_triangles * size_of::<u32>());
+                        unsafe{ buffer.set_len(num_triangles * size_of::<u32>()) };
+                        triangle_object_id_buffer = Some(buffer);
+
+                        let mut buffer = Vec::with_capacity(num_triangles);
+                        unsafe{ buffer.set_len(num_triangles) };
+                        highlight_buffer_tri = Some(buffer);
                     }else{
                         triangle_pos_buffer = None;
                         triangle_object_id_buffer = None;
@@ -997,7 +943,7 @@ macro_rules! impl_parser {
 
                     let index_buffer_bytes_per_element;
                     let mut index_buffer;
-                     if vertex_index.is_some() {
+                     if num_indices != 0 {
                         let bytes_per_element = if num_vertices < u16::MAX as usize {
                             size_of::<u16>()
                         }else{
@@ -1016,211 +962,163 @@ macro_rules! impl_parser {
                     let mut index_offset = 0;
                     let mut vertex_offset = 0;
                     let mut triangle_offset = 0;
-                    let mut object_ranges = vec![];
-                    let mut draw_ranges = vec![];
+                    let mut object_ranges = Vec::with_capacity(group_meshes.len());
+                    let mut draw_ranges = Vec::with_capacity(group_meshes.len());
 
-                    for child_index in child_indices {
-                        let has_meshes = group_meshes.iter()
-                            .any(|mesh| mesh.child_index == child_index);
-                        if !has_meshes {
-                            continue
-                        }
+                    let draw_range_begin = if index_buffer.is_some() {
+                        index_offset
+                    } else {
+                        vertex_offset
+                    };
 
-                        let draw_range_begin = if index_buffer.is_some() {
-                            index_offset
-                        } else {
-                            vertex_offset
-                        };
-
-                        for sub_mesh in group_meshes.iter()
-                            .filter(|sub_mesh| sub_mesh.child_index == child_index)
+                    for sub_mesh in group_meshes.iter() {
+                        for attrib in attributes.iter()
+                            .map(|attribute| attribute.into())
+                            .chain((*num_deviations > 0).then_some(Attribute::Deviations))
+                            .chain(has_materials.then_some(Attribute::MaterialIndex))
+                            .chain(has_object_ids.then_some(Attribute::ObjectId))
                         {
-                            for attrib in attributes.iter()
-                                .map(|attribute| attribute.into())
-                                .chain((*num_deviations > 0).then_some(Attribute::Deviations))
-                                .chain(has_materials.then_some(Attribute::MaterialIndex))
-                                .chain(has_object_ids.then_some(Attribute::ObjectId))
-                            {
-                                let num_components = attrib.num_components(*num_deviations) as usize;
-                                let bytes_per_element = attrib.bytes_per_element();
-                                let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
-                                for c in 0..num_components {
-                                    let offset = attrib_offsets[attrib] as usize + c * bytes_per_element;
-                                    match attrib {
-                                        Attribute::MaterialIndex =>
-                                            fill_to_interleaved_array(
-                                                bytemuck::cast_slice_mut(dst),
-                                                sub_mesh.material_index,
-                                                offset,
-                                                vertex_stride,
-                                                0,
-                                                sub_mesh.vertices.len as usize,
-                                            ),
-                                        Attribute::ObjectId =>
-                                            fill_to_interleaved_array(
-                                                bytemuck::cast_slice_mut(dst),
-                                                sub_mesh.object_id,
-                                                offset,
-                                                vertex_stride,
-                                                0,
-                                                sub_mesh.vertices.len as usize,
-                                            ),
-                                        _ => sub_mesh.vertices.copy_attribute_to_interleaved_array(
-                                            dst,
-                                            attrib,
-                                            c as u32,
-                                            offset,
-                                            vertex_stride
-                                        )
-                                    }
-                                }
-                            }
-
-                            let mut num_triangles_in_submesh = 0;
-                            if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
-                                = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
-                            {
-                                if vertex_index.is_some() && index_buffer.is_some() {
-                                    num_triangles_in_submesh = sub_mesh.indices.len() / 3;
-                                    let (x, y ,z) = (
-                                        sub_mesh.vertices.position.x,
-                                        sub_mesh.vertices.position.y,
-                                        sub_mesh.vertices.position.z
-                                    );
-                                    for index in sub_mesh.indices {
-                                        let index = *index as usize;
-                                        // TODO: Add support for triangle strips and fans as well...
-                                        triangle_pos_buffer.push(unsafe{ *x.get_unchecked(index) });
-                                        triangle_pos_buffer.push(unsafe{ *y.get_unchecked(index) });
-                                        triangle_pos_buffer.push(unsafe{ *z.get_unchecked(index) });
-                                    }
-                                }else{
-                                    let mut position = sub_mesh.vertices.position.thin_iter();
-                                    num_triangles_in_submesh = sub_mesh.vertices.len as usize / 3;
-                                    for _ in 0..sub_mesh.vertices.len {
-                                        let pos = unsafe{ position.next() };
-                                        triangle_pos_buffer.push(pos.x);
-                                        triangle_pos_buffer.push(pos.y);
-                                        triangle_pos_buffer.push(pos.z);
-                                    }
-                                }
-                                triangle_object_id_buffer[triangle_offset .. triangle_offset + num_triangles_in_submesh]
-                                    .fill(sub_mesh.object_id);
-                            }
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.x.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 0,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.y.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 2,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-                            copy_to_interleaved_array::<i16>(
-                                bytemuck::cast_slice_mut(&mut position_buffer),
-                                unsafe{ sub_mesh.vertices.position.z.as_slice(sub_mesh.vertices.len) },
-                                vertex_offset * position_stride + 4,
-                                position_stride,
-                                0,
-                                sub_mesh.vertices.len as usize,
-                            );
-
-
-                            // initialize index buffer (if any)
-                            if let Some(index_buffer) = &mut index_buffer {
-                                if num_vertices > u16::MAX as usize {
-                                    for (dst, src) in bytemuck::cast_slice_mut::<_, u32>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                        .iter_mut()
-                                        .zip(sub_mesh.indices)
-                                    {
-                                        *dst = *src as u32 + vertex_offset as u32
-                                    }
-                                }else{
-                                    for (dst, src) in bytemuck::cast_slice_mut::<_, u16>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                        .iter_mut()
-                                        .zip(sub_mesh.indices)
-                                    {
-                                        *dst = *src + vertex_offset as u16
-                                    }
-                                }
-                                index_offset += sub_mesh.indices.len();
-                            }
-
-                            // initialize highlight buffer
-                            let highlight_index = highlights.indices
-                                .get(sub_mesh.object_id as usize)
-                                .copied();
-                            let sub_mesh_end_vertex = vertex_offset + sub_mesh.vertices.len as usize;
-                            let sub_mesh_end_triangle = triangle_offset + sub_mesh.indices.len() as usize / 3;
-                            if let Some(highlight_index) = highlight_index {
-                                highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
-                                    .fill(highlight_index);
-                                if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
-                                    highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
-                                        .fill(highlight_index);
-                                }
-                            }
-
-                            // update object ranges
-                            let mut new_range = true;
-                            if let Some(MeshObjectRange {
-                                object_id,
-                                end_vertex,
-                                end_triangle,
-                                ..
-                            }) = object_ranges.last_mut() {
-                                if *object_id == sub_mesh.object_id {
-                                    *end_vertex = sub_mesh_end_vertex;
-                                    *end_triangle = sub_mesh_end_triangle;
-                                    new_range = false;
-                                }
-                            }
-
-                            if new_range {
-                                object_ranges.push(MeshObjectRange {
-                                    object_id: sub_mesh.object_id,
-                                    begin_vertex: vertex_offset,
-                                    end_vertex: sub_mesh_end_vertex,
-                                    begin_triangle: triangle_offset,
-                                    end_triangle: sub_mesh_end_triangle,
-                                })
-                            }
-
-                            triangle_offset += num_triangles_in_submesh;
-                            vertex_offset += sub_mesh.vertices.len as usize;
+                            let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
+                            let offset = attrib_offsets[attrib] as usize;
+                            sub_mesh.interleave_attribute(
+                                dst,
+                                attrib,
+                                *num_deviations,
+                                offset,
+                                vertex_stride
+                            )
                         }
 
-                        let draw_range_end = if index_buffer.is_some() {
-                            index_offset
-                        }else{
-                            vertex_offset
-                        };
-                        let byte_offset = draw_range_begin * if let Some(bytes_per_element) = index_buffer_bytes_per_element {
-                            bytes_per_element
-                        }else{
-                            vertex_stride
-                        };
-                        let count = draw_range_end - draw_range_begin;
-                        draw_ranges.push(DrawRange {
-                            child_index,
-                            byte_offset,
-                            first: draw_range_begin,
-                            count
-                        });
+                        let mut num_triangles_in_submesh = 0;
+                        if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
+                            = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
+                        {
+                            let triangle_pos_buffer = &mut bytemuck::cast_slice_mut(triangle_pos_buffer)[triangle_offset ..];
+                            if index_buffer.is_some() {
+                                num_triangles_in_submesh = sub_mesh.indices.len() / 3;
+                                let (x, y ,z) = (
+                                    sub_mesh.vertices.position.x,
+                                    sub_mesh.vertices.position.y,
+                                    sub_mesh.vertices.position.z
+                                );
+                                for (index, triangle) in sub_mesh.indices.iter()
+                                    .zip(triangle_pos_buffer.chunks_mut(3))
+                                {
+                                    let index = *index as usize;
+                                    // TODO: Add support for triangle strips and fans as well...
+                                    triangle[0] = unsafe{ *x.get_unchecked(index) };
+                                    triangle[1] = unsafe{ *y.get_unchecked(index) };
+                                    triangle[2] = unsafe{ *z.get_unchecked(index) };
+                                }
+                            }else{
+                                let mut position = sub_mesh.vertices.position.thin_iter();
+                                num_triangles_in_submesh = sub_mesh.vertices.len as usize / 3;
+                                for triangle in triangle_pos_buffer.chunks_mut(3)
+                                    .take(sub_mesh.vertices.len as usize)
+                                {
+                                    let pos = unsafe{ position.next() };
+                                    triangle[0] = pos.x;
+                                    triangle[1] = pos.y;
+                                    triangle[2] = pos.z;
+                                }
+                            }
+                            bytemuck::cast_slice_mut(triangle_object_id_buffer)[triangle_offset .. triangle_offset + num_triangles_in_submesh]
+                                .fill(sub_mesh.object_id);
+                        }
+
+                        sub_mesh.interleave_attribute(
+                            &mut position_buffer,
+                            Attribute::Position,
+                            *num_deviations,
+                            vertex_offset * position_stride,
+                            position_stride,
+                        );
+
+
+                        // initialize index buffer (if any)
+                        if let Some(index_buffer) = &mut index_buffer {
+                            if num_vertices > u16::MAX as usize {
+                                for (dst, src) in bytemuck::cast_slice_mut::<_, u32>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
+                                    .iter_mut()
+                                    .zip(sub_mesh.indices)
+                                {
+                                    *dst = *src as u32 + vertex_offset as u32
+                                }
+                            }else{
+                                for (dst, src) in bytemuck::cast_slice_mut::<_, u16>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
+                                    .iter_mut()
+                                    .zip(sub_mesh.indices)
+                                {
+                                    *dst = *src + vertex_offset as u16
+                                }
+                            }
+                            index_offset += sub_mesh.indices.len();
+                        }
+
+                        // initialize highlight buffer
+                        let highlight_index = highlights.indices
+                            .get(sub_mesh.object_id as usize)
+                            .copied();
+                        let sub_mesh_end_vertex = vertex_offset + sub_mesh.vertices.len as usize;
+                        let sub_mesh_end_triangle = triangle_offset + sub_mesh.indices.len() as usize / 3;
+                        if let Some(highlight_index) = highlight_index {
+                            highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
+                                .fill(highlight_index);
+                            if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
+                                highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
+                                    .fill(highlight_index);
+                            }
+                        }
+
+                        // update object ranges
+                        let mut new_range = true;
+                        if let Some(MeshObjectRange {
+                            object_id,
+                            end_vertex,
+                            end_triangle,
+                            ..
+                        }) = object_ranges.last_mut() {
+                            if *object_id == sub_mesh.object_id {
+                                *end_vertex = sub_mesh_end_vertex;
+                                *end_triangle = sub_mesh_end_triangle;
+                                new_range = false;
+                            }
+                        }
+
+                        if new_range {
+                            object_ranges.push(MeshObjectRange {
+                                object_id: sub_mesh.object_id,
+                                begin_vertex: vertex_offset,
+                                end_vertex: sub_mesh_end_vertex,
+                                begin_triangle: triangle_offset,
+                                end_triangle: sub_mesh_end_triangle,
+                            })
+                        }
+
+                        triangle_offset += num_triangles_in_submesh;
+                        vertex_offset += sub_mesh.vertices.len as usize;
                     }
 
+                    let draw_range_end = if index_buffer.is_some() {
+                        index_offset
+                    }else{
+                        vertex_offset
+                    };
+                    let byte_offset = draw_range_begin * if let Some(bytes_per_element) = index_buffer_bytes_per_element {
+                        bytes_per_element
+                    }else{
+                        vertex_stride
+                    };
+                    let count = draw_range_end - draw_range_begin;
+                    draw_ranges.push(DrawRange {
+                        child_index: group_meshes[0].child_index,
+                        byte_offset,
+                        first: draw_range_begin,
+                        count
+                    });
+
                     fn enumerate_buffers(possible_buffers: PossibleBuffers) -> (Vec<Vec<u8>>, BufIndex) {
-                        let mut buffers = vec![];
+                        let mut buffers = Vec::with_capacity(6);
                         let index = BufIndex {
                             primary: {
                                 let id = buffers.len();
@@ -1240,7 +1138,7 @@ macro_rules! impl_parser {
                             tri_pos: {
                                 if let Some(tri_pos) = possible_buffers.tri_pos {
                                     let id = buffers.len();
-                                    buffers.push(bytemuck::cast_slice(&tri_pos).to_vec());  // TODO: avoid this copy, probably use ArrayBuffers directly here
+                                    buffers.push(tri_pos);
                                     id as i8
                                 }else{
                                     -1
@@ -1249,7 +1147,7 @@ macro_rules! impl_parser {
                             tri_id: {
                                 if let Some(tri_id) = possible_buffers.tri_id {
                                     let id = buffers.len();
-                                    buffers.push(bytemuck::cast_slice(&tri_id).to_vec()); // TODO: avoid this copy, probably use ArrayBuffers directly here
+                                    buffers.push(tri_id);
                                     id as i8
                                 }else{
                                     -1
@@ -1336,7 +1234,7 @@ macro_rules! impl_parser {
                         highlight_tri: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight_tri, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
                     };
 
-                    object_ranges.sort_by_key(|obj_range| obj_range.object_id);
+                    object_ranges.sort_unstable_by_key(|obj_range| obj_range.object_id);
 
                     sub_meshes.push(ReturnSubMesh{
                         material_type: *material_type,
