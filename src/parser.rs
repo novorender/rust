@@ -261,6 +261,10 @@ extern "C" {
     pub type ArrayObjectRange;
     #[wasm_bindgen(typescript_type = "Array<Uint8Array>")]
     pub type ArrayUint8Array;
+    #[wasm_bindgen(typescript_type = "Array<Uint8Array> | undefined")]
+    pub type ArrayUint8ArrayOrUndefined;
+    #[wasm_bindgen(typescript_type = "Uint8Array | undefined")]
+    pub type Uint8ArrayOrUndefined;
     #[wasm_bindgen(typescript_type = r#""POINTS" | "LINES" | "LINE_LOOP" | "LINE_STRIP" | "TRIANGLES" | "TRIANGLE_STRIP" | "TRIANGLE_FAN""#)]
     pub type PrimitiveTypeStr;
     #[wasm_bindgen(typescript_type = "ShaderAttributeType")]

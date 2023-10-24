@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow};
 use endianness::ByteOrder;
 use crate::gl_bindings as gl;
 
-use crate::parser::ArrayUint8Array;
+use crate::parser::{ArrayUint8ArrayOrUndefined, Uint8ArrayOrUndefined};
 
 static IDENTIFIER_KTX1: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
 static IDENTIFIER_KTX2: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -27,7 +27,7 @@ pub struct TextureParameters {
     pub width: u32,
     pub height: u32,
     pub depth: u32,
-    image_data: Array,
+    mips: Array,
 }
 
 #[wasm_bindgen]
@@ -48,19 +48,19 @@ impl TextureParameters {
     }
 
     #[wasm_bindgen(getter)]
-    pub fn image(&self) -> ArrayUint8Array {
+    pub fn image(&self) -> Uint8ArrayOrUndefined {
         if self.has_mips {
             JsValue::undefined().into()
         }else{
-            let js_value: JsValue = self.image_data.clone().into();
+            let js_value: JsValue = self.mips.get(0);
             js_value.into()
         }
     }
 
     #[wasm_bindgen(getter, js_name = "mipMaps")]
-    pub fn mip_maps(&self) -> ArrayUint8Array {
+    pub fn mip_maps(&self) -> ArrayUint8ArrayOrUndefined {
         if self.has_mips {
-            let js_value: JsValue = self.image_data.clone().into();
+            let js_value: JsValue = self.mips.clone().into();
             js_value.into()
         }else{
             JsValue::undefined().into()
@@ -102,11 +102,11 @@ impl Ktx<'_> {
             kind: self.kind,
             internal_format: self.internal_format,
             ty: self.ty,
-            has_mips: self.header.num_array_elements > 0,
+            has_mips: self.header.num_levels > 1,
             width: self.header.pixel_width,
             height: self.header.pixel_height,
             depth: self.header.pixel_depth,
-            image_data: self.image_data()
+            mips: self.image_data()
         }
     }
 }
