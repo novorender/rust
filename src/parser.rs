@@ -1167,9 +1167,21 @@ macro_rules! impl_parser {
                         (buffers, index)
                     }
 
-                    debug_assert_eq!(vertex_offset, num_vertices);
-                    debug_assert_eq!(index_offset, num_indices);
-                    debug_assert_eq!(triangle_offset, triangle_object_id_buffer.as_ref().map(|buffer| buffer.len()).unwrap_or(0));
+                    debug_assert_eq!(
+                        vertex_offset, num_vertices,
+                        "vertex_offset {vertex_offset} != num_vertices {num_vertices}"
+                    );
+                    debug_assert_eq!(
+                        index_offset,
+                        num_indices,
+                        "index_offset {num_indices} != num_vertices {num_vertices}"
+                    );
+                    debug_assert_eq!(
+                        triangle_offset,
+                        triangle_object_id_buffer.as_ref().map(|buffer| buffer.len() / size_of::<u32>()).unwrap_or(0),
+                        "triangle_offset {triangle_offset} != triangle_object_id_buffer.len() / size_of::<u32>() {}",
+                        triangle_object_id_buffer.as_ref().map(|buffer| buffer.len() / size_of::<u32>()).unwrap_or(0)
+                    );
 
                     let has_triangle_pos_buffer = triangle_pos_buffer.is_some();
                     let has_triangle_object_id_buffer = triangle_object_id_buffer.is_some();
