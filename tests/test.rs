@@ -37,7 +37,7 @@ fn test_parser() -> anyhow::Result<()>{
 
     // TODO: test something about the children
 
-    let (sub_meshes, textures) = schema.geometry(
+    let (_sub_meshes, _textures)  = schema.geometry(
         false,
         &Highlights::default(),
         |_| true
