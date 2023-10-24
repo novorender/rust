@@ -334,10 +334,10 @@ pub struct VertexAttributes {
 }
 
 struct PossibleBuffers {
-    pos: Vec<u8>,
+    pos: Vec<i16>,
     primary: Vec<u8>,
-    tri_pos: Option<Vec<u8>>,
-    tri_id: Option<Vec<u8>>,
+    tri_pos: Option<Vec<i16>>,
+    tri_id: Option<Vec<u32>>,
     highlight: Vec<u8>,
     highlight_tri: Option<Vec<u8>>,
 }
@@ -352,7 +352,8 @@ struct BufIndex {
 }
 
 pub enum Indices {
-    IndexBuffer(Vec<u8>),
+    IndexBuffer32(Vec<u32>),
+    IndexBuffer16(Vec<u16>),
     NumIndices(u32),
 }
 
@@ -683,6 +684,56 @@ macro_rules! impl_parser {
             pub base_color_texture: Option<u32>,
             #[wasm_bindgen(skip)]
             pub draw_ranges: Option<Vec<DrawRange>>,
+            buf_index: BufIndex,
+        }
+
+        impl Drop for ReturnSubMesh {
+            fn drop(&mut self) {
+                {
+                    let mut pos = std::mem::replace(&mut self.vertex_buffers[self.buf_index.pos as usize], vec![]);
+                    let ptr = pos.as_mut_ptr();
+                    let len_bytes = pos.len();
+                    let cap_bytes = pos.capacity();
+
+                    std::mem::forget(pos);
+
+                    std::mem::drop(unsafe{ Vec::from_raw_parts(
+                        ptr as *mut i16,
+                        len_bytes / size_of::<i16>(),
+                        cap_bytes / size_of::<i16>(),
+                    )});
+                }
+
+                if self.buf_index.tri_pos >= 0 {
+                    let mut tri_pos = std::mem::replace(&mut self.vertex_buffers[self.buf_index.tri_pos as usize], vec![]);
+                    let ptr = tri_pos.as_mut_ptr();
+                    let len_bytes = tri_pos.len();
+                    let cap_bytes = tri_pos.capacity();
+
+                    std::mem::forget(tri_pos);
+
+                    std::mem::drop(unsafe{ Vec::from_raw_parts(
+                        ptr as *mut i16,
+                        len_bytes / size_of::<i16>(),
+                        cap_bytes / size_of::<i16>(),
+                    )});
+                }
+
+                if self.buf_index.tri_id >= 0 {
+                    let mut tri_id = std::mem::replace(&mut self.vertex_buffers[self.buf_index.tri_id as usize], vec![]);
+                    let ptr = tri_id.as_mut_ptr();
+                    let len_bytes = tri_id.len();
+                    let cap_bytes = tri_id.capacity();
+
+                    std::mem::forget(tri_id);
+
+                    std::mem::drop(unsafe{ Vec::from_raw_parts(
+                        ptr as *mut u32,
+                        len_bytes / size_of::<u32>(),
+                        cap_bytes / size_of::<u32>(),
+                    )});
+                }
+            }
         }
 
         #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
@@ -742,14 +793,13 @@ macro_rules! impl_parser {
             #[wasm_bindgen(js_name = "indices")]
             pub fn indices(&self) -> JsValue {
                 match &self.indices {
-                    Indices::IndexBuffer(buffer) => if self.num_vertices > u16::MAX as u32 {
-                        let buffer: &[u32] = bytemuck::cast_slice(buffer);
-                        let typed_array = js_sys::Uint32Array::new_with_length(buffer.len() as u32);
+                    Indices::IndexBuffer16(buffer) => {
+                        let typed_array = js_sys::Uint16Array::new_with_length(buffer.len() as u32);
                         typed_array.copy_from(buffer);
                         typed_array.into()
-                    }else{
-                        let buffer: &[u16] = bytemuck::cast_slice(buffer);
-                        let typed_array = js_sys::Uint16Array::new_with_length(buffer.len() as u32);
+                    }
+                    Indices::IndexBuffer32(buffer) => {
+                        let typed_array = js_sys::Uint32Array::new_with_length(buffer.len() as u32);
                         typed_array.copy_from(buffer);
                         typed_array.into()
                     },
@@ -769,10 +819,8 @@ macro_rules! impl_parser {
         #[wasm_bindgen(js_class = [<Texture $version>])]
         impl Texture {
             #[wasm_bindgen(getter)]
-            pub fn params(&self) -> TextureParams {
-                // TODO: Is this correct? also try to avoid clone
-                let js_value: JsValue = self.params.clone().into();
-                js_value.into()
+            pub fn params(&self) -> TextureParameters {
+                self.params.clone()
             }
         }
 
@@ -917,8 +965,8 @@ macro_rules! impl_parser {
                     let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
-                    let mut triangle_pos_buffer: Option<Vec<u8>>;
-                    let mut triangle_object_id_buffer: Option<Vec<u8>>;
+                    let mut triangle_pos_buffer: Option<Vec<i16>>;
+                    let mut triangle_object_id_buffer: Option<Vec<u32>>;
                     let mut highlight_buffer_tri;
                     if enable_outlines && *primitive_type == PrimitiveType::Triangles {
                         let mut buffer = Vec::with_capacity(num_triangles * triangle_pos_stride * size_of::<i16>());
@@ -938,24 +986,26 @@ macro_rules! impl_parser {
                         highlight_buffer_tri = None;
                     }
 
-                    let mut position_buffer = Vec::with_capacity(num_vertices * position_stride);
-                    unsafe{ position_buffer.set_len(num_vertices * position_stride) };
+                    let mut position_buffer: Vec<i16> = Vec::with_capacity(num_vertices * position_stride / size_of::<i16>());
+                    unsafe{ position_buffer.set_len(num_vertices * position_stride / size_of::<i16>()) };
 
                     let index_buffer_bytes_per_element;
-                    let mut index_buffer;
+                    let mut index_buffer_16: Option<Vec<u16>> = None;
+                    let mut index_buffer_32: Option<Vec<u32>> = None;
                      if num_indices != 0 {
-                        let bytes_per_element = if num_vertices < u16::MAX as usize {
-                            size_of::<u16>()
+                        if num_vertices < u16::MAX as usize {
+                            index_buffer_bytes_per_element = Some(size_of::<u16>());
+                            let mut buffer = Vec::with_capacity(num_indices);
+                            unsafe{ buffer.set_len(num_indices) };
+                            index_buffer_16 = Some(buffer);
                         }else{
-                            size_of::<u32>()
+                            index_buffer_bytes_per_element = Some(size_of::<u32>());
+                            let mut buffer = Vec::with_capacity(num_indices);
+                            unsafe{ buffer.set_len(num_indices) };
+                            index_buffer_32 = Some(buffer);
                         };
-                        index_buffer_bytes_per_element = Some(bytes_per_element);
-                        let mut buffer = Vec::with_capacity(num_indices * bytes_per_element);
-                        unsafe{ buffer.set_len(num_indices * bytes_per_element) };
-                        index_buffer = Some(buffer);
                     }else{
                         index_buffer_bytes_per_element = None;
-                        index_buffer = None;
                     }
 
                     let mut highlight_buffer = vec![0; num_vertices];
@@ -965,7 +1015,7 @@ macro_rules! impl_parser {
                     let mut object_ranges = Vec::with_capacity(group_meshes.len());
                     let mut draw_ranges = Vec::with_capacity(group_meshes.len());
 
-                    let draw_range_begin = if index_buffer.is_some() {
+                    let draw_range_begin = if num_indices != 0 {
                         index_offset
                     } else {
                         vertex_offset
@@ -993,8 +1043,8 @@ macro_rules! impl_parser {
                         if let (Some(triangle_pos_buffer), Some(triangle_object_id_buffer))
                             = (&mut triangle_pos_buffer, &mut triangle_object_id_buffer)
                         {
-                            let triangle_pos_buffer = &mut bytemuck::cast_slice_mut(triangle_pos_buffer)[triangle_offset ..];
-                            if index_buffer.is_some() {
+                            let triangle_pos_buffer = &mut triangle_pos_buffer[triangle_offset ..];
+                            if num_indices != 0 {
                                 num_triangles_in_submesh = sub_mesh.indices.len() / 3;
                                 let (x, y ,z) = (
                                     sub_mesh.vertices.position.x,
@@ -1022,12 +1072,12 @@ macro_rules! impl_parser {
                                     triangle[2] = pos.z;
                                 }
                             }
-                            bytemuck::cast_slice_mut(triangle_object_id_buffer)[triangle_offset .. triangle_offset + num_triangles_in_submesh]
+                            triangle_object_id_buffer[triangle_offset .. triangle_offset + num_triangles_in_submesh]
                                 .fill(sub_mesh.object_id);
                         }
 
                         sub_mesh.interleave_attribute(
-                            &mut position_buffer,
+                            bytemuck::cast_slice_mut(&mut position_buffer),
                             Attribute::Position,
                             *num_deviations,
                             vertex_offset * position_stride,
@@ -1036,22 +1086,23 @@ macro_rules! impl_parser {
 
 
                         // initialize index buffer (if any)
-                        if let Some(index_buffer) = &mut index_buffer {
-                            if num_vertices > u16::MAX as usize {
-                                for (dst, src) in bytemuck::cast_slice_mut::<_, u32>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                    .iter_mut()
-                                    .zip(sub_mesh.indices)
-                                {
-                                    *dst = *src as u32 + vertex_offset as u32
-                                }
-                            }else{
-                                for (dst, src) in bytemuck::cast_slice_mut::<_, u16>(index_buffer)[index_offset .. index_offset + sub_mesh.indices.len()]
-                                    .iter_mut()
-                                    .zip(sub_mesh.indices)
-                                {
-                                    *dst = *src + vertex_offset as u16
-                                }
+                        if let Some(index_buffer) = &mut index_buffer_16 {
+                            for (dst, src) in index_buffer[index_offset .. index_offset + sub_mesh.indices.len()]
+                                .iter_mut()
+                                .zip(sub_mesh.indices)
+                            {
+                                *dst = *src + vertex_offset as u16
                             }
+                        }else if let Some(index_buffer) = &mut index_buffer_32 {
+                            for (dst, src) in index_buffer[index_offset .. index_offset + sub_mesh.indices.len()]
+                                .iter_mut()
+                                .zip(sub_mesh.indices)
+                            {
+                                *dst = *src as u32 + vertex_offset as u32
+                            }
+                        }
+
+                        if num_indices != 0 {
                             index_offset += sub_mesh.indices.len();
                         }
 
@@ -1099,7 +1150,7 @@ macro_rules! impl_parser {
                         vertex_offset += sub_mesh.vertices.len as usize;
                     }
 
-                    let draw_range_end = if index_buffer.is_some() {
+                    let draw_range_end = if num_indices != 0 {
                         index_offset
                     }else{
                         vertex_offset
@@ -1132,12 +1183,39 @@ macro_rules! impl_parser {
                             },
                             pos: {
                                 let id = buffers.len();
-                                buffers.push(possible_buffers.pos);
+
+                                let mut pos = possible_buffers.pos;
+                                let ptr = pos.as_mut_ptr();
+                                let len_bytes = pos.len();
+                                let cap_bytes = pos.capacity();
+
+                                std::mem::forget(pos);
+
+                                let pos = unsafe{ Vec::from_raw_parts(
+                                    ptr as *mut u8,
+                                    len_bytes * size_of::<i16>(),
+                                    cap_bytes * size_of::<i16>(),
+                                )};
+
+                                buffers.push(pos);
                                 id as i8
                             },
                             tri_pos: {
-                                if let Some(tri_pos) = possible_buffers.tri_pos {
+                                if let Some(mut tri_pos) = possible_buffers.tri_pos {
                                     let id = buffers.len();
+
+                                    let ptr = tri_pos.as_mut_ptr();
+                                    let len_bytes = tri_pos.len();
+                                    let cap_bytes = tri_pos.capacity();
+
+                                    std::mem::forget(tri_pos);
+
+                                    let tri_pos = unsafe{ Vec::from_raw_parts(
+                                        ptr as *mut u8,
+                                        len_bytes * size_of::<i16>(),
+                                        cap_bytes * size_of::<i16>(),
+                                    )};
+
                                     buffers.push(tri_pos);
                                     id as i8
                                 }else{
@@ -1145,8 +1223,21 @@ macro_rules! impl_parser {
                                 }
                             },
                             tri_id: {
-                                if let Some(tri_id) = possible_buffers.tri_id {
+                                if let Some(mut tri_id) = possible_buffers.tri_id {
                                     let id = buffers.len();
+
+                                    let ptr = tri_id.as_mut_ptr();
+                                    let len_bytes = tri_id.len();
+                                    let cap_bytes = tri_id.capacity();
+
+                                    std::mem::forget(tri_id);
+
+                                    let tri_id = unsafe{ Vec::from_raw_parts(
+                                        ptr as *mut u8,
+                                        len_bytes * size_of::<u32>(),
+                                        cap_bytes * size_of::<u32>(),
+                                    )};
+
                                     buffers.push(tri_id);
                                     id as i8
                                 }else{
@@ -1195,8 +1286,10 @@ macro_rules! impl_parser {
                         highlight_tri: highlight_buffer_tri
                     });
 
-                    let indices = if let Some(index_buffer) = index_buffer {
-                        Indices::IndexBuffer(index_buffer)
+                    let indices = if let Some(index_buffer) = index_buffer_16 {
+                        Indices::IndexBuffer16(index_buffer)
+                    }else if let Some(index_buffer) = index_buffer_32{
+                        Indices::IndexBuffer32(index_buffer)
                     }else{
                         Indices::NumIndices(num_vertices as u32)
                     };
@@ -1259,6 +1352,7 @@ macro_rules! impl_parser {
                         indices,
                         base_color_texture,
                         draw_ranges: Some(draw_ranges),
+                        buf_index,
                     })
                 }
 
