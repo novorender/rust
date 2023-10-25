@@ -960,6 +960,9 @@ macro_rules! impl_parser {
                     group_meshes: Vec<SubMesh<'a>>,
                     has_materials: bool,
                     has_object_ids: bool,
+                    num_vertices: usize,
+                    num_indices: usize,
+                    num_triangles: usize,
                 }
 
                 #[derive(Hash, PartialEq, Eq)]
@@ -997,11 +1000,21 @@ macro_rules! impl_parser {
                         num_deviations,
                         has_materials: false,
                         has_object_ids: false,
-                        group_meshes: Vec::with_capacity(self.sub_mesh.len as usize)
+                        group_meshes: Vec::with_capacity(self.sub_mesh.len as usize),
+                        num_vertices: 0,
+                        num_indices: 0,
+                        num_triangles: 0,
                     });
                     group.has_materials |= material_index != u8::MAX;
                     group.has_object_ids |= object_id != u32::MAX;
+                    let vtx_cnt = sub_mesh.vertices.len as usize;
+                    let idx_cnt = sub_mesh.indices.len();
                     group.group_meshes.push(sub_mesh);
+                    group.num_vertices += vtx_cnt;
+                    group.num_indices += idx_cnt;
+                    if primitive_type == PrimitiveType::Triangles {
+                        group.num_triangles += (if idx_cnt > 0 { idx_cnt } else { vtx_cnt } as f32 / 3.).round() as usize;
+                    }
                 }
 
                 let sub_meshes = groups.values().filter_map(|Group {
@@ -1012,6 +1025,9 @@ macro_rules! impl_parser {
                     group_meshes,
                     has_materials,
                     has_object_ids,
+                    num_vertices,
+                    num_indices,
+                    num_triangles,
                 }| {
                     if group_meshes.is_empty() {
                         return None;
@@ -1026,20 +1042,9 @@ macro_rules! impl_parser {
                         *has_object_ids
                     );
                     let vertex_stride = attrib_offsets.stride as usize;
-
-                    let mut num_vertices = 0;
-                    let mut num_indices = 0;
-                    let mut num_triangles = 0;
-                    for mesh in group_meshes {
-                        let vtx_cnt = mesh.vertices.len as usize;
-                        let idx_cnt = mesh.indices.len();
-                        num_vertices += vtx_cnt;
-                        num_indices += idx_cnt;
-                        if *primitive_type == PrimitiveType::Triangles {
-                            num_triangles += (if idx_cnt > 0 { idx_cnt } else { vtx_cnt } as f32 / 3.).round() as usize;
-                        }
-                    }
-
+                    let num_vertices = *num_vertices;
+                    let num_indices = *num_indices;
+                    let num_triangles = *num_triangles;
                     let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
