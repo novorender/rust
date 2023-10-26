@@ -2,6 +2,7 @@
 use core::mem::{size_of, align_of};
 
 use half::f16;
+use bitflags::Flags;
 
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
@@ -123,60 +124,82 @@ impl<'a> Reader<'a> {
 
 #[derive(Default)]
 pub struct Offsets {
-    offsets: [u32; Attribute::Deviations as usize + 1],
+    offsets: [u32; Attribute::FLAGS.len()],
     stride: u32,
 }
 
 impl std::ops::Index<Attribute> for Offsets {
     type Output = u32;
     fn index(&self, index: Attribute) -> &Self::Output {
-        &self.offsets[index as usize]
+        &self.offsets[index.index() as usize]
     }
 }
 
 impl std::ops::IndexMut<Attribute> for Offsets {
     fn index_mut(&mut self, index: Attribute) -> &mut Self::Output {
-        &mut self.offsets[index as usize]
+        &mut self.offsets[index.index() as usize]
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Attribute {
-    Position,
-    Normal,
-    Color,
-    TexCoord,
-    ProjectedPos,
-    MaterialIndex,
-    ObjectId,
-    Deviations,
+
+
+bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct Attribute: u8 {
+        const NORMAL = 1;
+        const COLOR = 2;
+        const TEX_COORD = 4;
+        const PROJECTED_POS = 8;
+        const POSITION = 16;
+        const MATERIAL_INDEX = 32;
+        const OBJECT_ID = 64;
+        const DEVIATIONS = 128;
+    }
+}
+
+macro_rules! const_debug_assert_eq {
+    ($a: expr, $b: expr, $($msg: tt),*) => {
+        #[cfg(debug_assertions)]
+        if $a != $b {
+            panic!($($msg,)*)
+        }
+    };
 }
 
 impl Attribute {
     const fn num_components(self, num_deviations: u8) -> u32 {
+        const_debug_assert_eq!(self.bits().count_ones(), 1, "Trying to retrieve num_components for Attribute which contains more than one flag enabled");
         match self {
-            Attribute::Position => 3,
-            Attribute::Color => 4,
-            Attribute::Normal => 3,
-            Attribute::ProjectedPos => 3,
-            Attribute::TexCoord => 2,
-            Attribute::MaterialIndex => 1,
-            Attribute::ObjectId => 1,
-            Attribute::Deviations => num_deviations as u32,
+            Attribute::POSITION => 3,
+            Attribute::COLOR => 4,
+            Attribute::NORMAL => 3,
+            Attribute::PROJECTED_POS => 3,
+            Attribute::TEX_COORD => 2,
+            Attribute::MATERIAL_INDEX => 1,
+            Attribute::OBJECT_ID => 1,
+            Attribute::DEVIATIONS => num_deviations as u32,
+            _ => unreachable!()
         }
     }
 
     const fn bytes_per_element(self) -> usize {
+        const_debug_assert_eq!(self.bits().count_ones(), 1, "Trying to retrieve bytes_per_element for Attribute which contains more than one flag enabled");
         match self {
-            Attribute::Position => size_of::<u16>(),
-            Attribute::Color => size_of::<u16>(),
-            Attribute::Normal => size_of::<i8>(),
-            Attribute::ProjectedPos => size_of::<u16>(),
-            Attribute::TexCoord => size_of::<f16>(),
-            Attribute::MaterialIndex => size_of::<u8>(),
-            Attribute::ObjectId => size_of::<u32>(),
-            Attribute::Deviations => size_of::<f16>(),
+            Attribute::POSITION => size_of::<u16>(),
+            Attribute::COLOR => size_of::<u16>(),
+            Attribute::NORMAL => size_of::<i8>(),
+            Attribute::PROJECTED_POS => size_of::<u16>(),
+            Attribute::TEX_COORD => size_of::<f16>(),
+            Attribute::MATERIAL_INDEX => size_of::<u8>(),
+            Attribute::OBJECT_ID => size_of::<u32>(),
+            Attribute::DEVIATIONS => size_of::<f16>(),
+            _ => unreachable!()
         }
+    }
+
+    const fn index(self) -> usize {
+        const_debug_assert_eq!(self.bits().count_ones(), 1, "Trying to retrieve index for Attribute which contains more than one flag enabled");
+        self.bits().trailing_zeros() as usize
     }
 }
 
@@ -199,7 +222,7 @@ fn compute_vertex_offsets_(attributes: impl IntoIterator<Item = Attribute>, num_
         let bytes = attribute.bytes_per_element() as u32;
         max_align = max_align.max(bytes);
         offset += padding(bytes as u32, offset);
-        offsets[attribute.into()] = offset;
+        offsets[Attribute::from_bits_truncate(attribute.bits())] = offset;
         offset += bytes * count;
     }
     offset += padding(max_align, offset); // align stride to largest typed array
@@ -338,12 +361,12 @@ pub struct VertexAttributes {
 }
 
 pub struct PossibleBuffers {
-    pos: Vec<i16>,
-    primary: Vec<u8>,
-    tri_pos: Option<Vec<i16>>,
-    tri_id: Option<Vec<u32>>,
-    highlight: Vec<u8>,
-    highlight_tri: Option<Vec<u8>>,
+    pub pos: Vec<i16>,
+    pub primary: Vec<u8>,
+    pub tri_pos: Option<Vec<i16>>,
+    pub tri_id: Option<Vec<u32>>,
+    pub highlight: Vec<u8>,
+    pub highlight_tri: Option<Vec<u8>>,
 }
 
 #[derive(Copy, Clone)]
@@ -488,18 +511,6 @@ macro_rules! impl_parser {
             }
         }
 
-        impl From<OptionalVertexAttribute> for Attribute {
-            fn from(value: OptionalVertexAttribute) -> Self {
-                match value {
-                    OptionalVertexAttribute::COLOR => Attribute::Color,
-                    OptionalVertexAttribute::NORMAL => Attribute::Normal,
-                    OptionalVertexAttribute::PROJECTED_POS => Attribute::ProjectedPos,
-                    OptionalVertexAttribute::TEX_COORD => Attribute::TexCoord,
-                    _ => unreachable!()
-                }
-            }
-        }
-
         // All attributes + position for non-separate position, not used anymore
         // fn compute_vertex_offsets(attributes: OptionalVertexAttribute, num_deviations: u8, has_materials: bool, has_object_ids: bool) -> Offsets {
         //     compute_vertex_offsets_(
@@ -514,24 +525,32 @@ macro_rules! impl_parser {
         // }
 
         fn compute_vertex_position_offsets() -> Offsets {
-            compute_vertex_offsets_(Some(Attribute::Position), 0)
+            compute_vertex_offsets_(Attribute::POSITION.iter(), 0)
         }
 
         fn compute_vertex_position_deviations_offsets(num_deviations: u8) -> Offsets {
-            compute_vertex_offsets_(
-                Some(Attribute::Position).into_iter()
-                    .chain((num_deviations > 0).then_some(Attribute::Deviations)),
+            compute_vertex_offsets_({
+                    let mut attr = Attribute::POSITION;
+                    if num_deviations > 0 {
+                        attr.insert(Attribute::DEVIATIONS);
+                    }
+                    attr.iter()
+                },
                 num_deviations
             )
         }
 
         fn compute_vertex_attributes_offsets(attributes: OptionalVertexAttribute, num_deviations: u8, has_materials: bool, has_object_ids: bool) -> Offsets {
             compute_vertex_offsets_(
-                attributes.iter()
-                    .map(|attribute| attribute.into())
-                    .chain((num_deviations > 0).then_some(Attribute::Deviations))
-                    .chain(has_materials.then_some(Attribute::MaterialIndex))
-                    .chain(has_object_ids.then_some(Attribute::ObjectId)),
+                {
+                    let mut attr = Attribute::from_bits(attributes.bits()).unwrap();
+                    if num_deviations > 0 {
+                        attr.insert(Attribute::DEVIATIONS);
+                    }
+                    attr.insert(Attribute::MATERIAL_INDEX);
+                    attr.insert(Attribute::OBJECT_ID);
+                    attr.into_iter()
+                },
                 num_deviations
             )
         }
@@ -639,7 +658,7 @@ macro_rules! impl_parser {
             fn interleave_attribute(&self, dst: &mut [u8], attribute: Attribute, num_deviations: u8, byte_offset: usize, byte_stride: usize) {
                 // SAFETY: all the slices have len self.len so calling as_slice(self.len) is safe
                 match attribute {
-                    Attribute::Position => interleave_three::<i16>(
+                    Attribute::POSITION => interleave_three::<i16>(
                         bytemuck::cast_slice_mut(dst),
                         unsafe{ self.vertices.position.x.as_slice(self.vertices.len) },
                         unsafe{ self.vertices.position.y.as_slice(self.vertices.len) },
@@ -647,7 +666,7 @@ macro_rules! impl_parser {
                         byte_offset,
                         byte_stride,
                     ),
-                    Attribute::Normal => if let Some(normal) = &self.vertices.normal {
+                    Attribute::NORMAL => if let Some(normal) = &self.vertices.normal {
                         interleave_three(
                             bytemuck::cast_slice_mut(dst),
                             unsafe{ normal.x.as_slice(self.vertices.len) },
@@ -657,7 +676,7 @@ macro_rules! impl_parser {
                             byte_stride,
                         )
                     },
-                    Attribute::Color => if let Some(color) = &self.vertices.color {
+                    Attribute::COLOR => if let Some(color) = &self.vertices.color {
                         interleave_four(
                             bytemuck::cast_slice_mut(dst),
                             unsafe{ color.red.as_slice(self.vertices.len) },
@@ -668,7 +687,7 @@ macro_rules! impl_parser {
                             byte_stride,
                         )
                     },
-                    Attribute::TexCoord => if let Some(tex_coord) = &self.vertices.tex_coord {
+                    Attribute::TEX_COORD => if let Some(tex_coord) = &self.vertices.tex_coord {
                         interleave_two(
                             bytemuck::cast_slice_mut(dst),
                             unsafe{ tex_coord.x.as_slice(self.vertices.len) },
@@ -677,7 +696,7 @@ macro_rules! impl_parser {
                             byte_stride,
                         )
                     },
-                    Attribute::ProjectedPos => if let Some(projected_pos) = &self.vertices.projected_pos {
+                    Attribute::PROJECTED_POS => if let Some(projected_pos) = &self.vertices.projected_pos {
                         interleave_three(
                             bytemuck::cast_slice_mut(dst),
                             unsafe{ projected_pos.x.as_slice(self.vertices.len) },
@@ -687,7 +706,7 @@ macro_rules! impl_parser {
                             byte_stride,
                         )
                     },
-                    Attribute::MaterialIndex => fill_to_interleaved_array(
+                    Attribute::MATERIAL_INDEX => fill_to_interleaved_array(
                         bytemuck::cast_slice_mut(dst),
                         self.material_index,
                         byte_offset,
@@ -695,7 +714,7 @@ macro_rules! impl_parser {
                         0,
                         self.vertices.len as usize,
                     ),
-                    Attribute::ObjectId => fill_to_interleaved_array(
+                    Attribute::OBJECT_ID => fill_to_interleaved_array(
                         bytemuck::cast_slice_mut(dst),
                         self.object_id,
                         byte_offset,
@@ -703,7 +722,7 @@ macro_rules! impl_parser {
                         0,
                         self.vertices.len as usize,
                     ),
-                    Attribute::Deviations => match num_deviations {
+                    Attribute::DEVIATIONS => match num_deviations {
                         1 => interleave_one(
                             bytemuck::cast_slice_mut(dst),
                             unsafe{ self.vertices.deviations.a.unwrap().as_slice(self.vertices.len) },
@@ -735,7 +754,8 @@ macro_rules! impl_parser {
                             byte_stride,
                         ),
                         _ => (),
-                    }
+                    },
+                    _ => unreachable!("Unknown attribute or passed more than one flag enabled")
                 }
             }
         }
@@ -834,14 +854,14 @@ macro_rules! impl_parser {
                 };
                 let attrib_offsets = &self.attrib_offsets;
                 VertexAttributes {
-                    position: VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.pos as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::Position], byte_stride: 0 },
-                    normal: attributes.contains(OptionalVertexAttribute::NORMAL).then(|| VertexAttribute { kind: "FLOAT_VEC3", buffer: buf_index.primary as i8, component_count: 3, component_type: "BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::Normal], byte_stride: stride }),
-                    material: has_materials.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::MaterialIndex], byte_stride: stride}),
-                    object_id: has_object_ids.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::ObjectId], byte_stride: stride}),
-                    tex_coord: attributes.contains(OptionalVertexAttribute::TEX_COORD).then(|| VertexAttribute { kind: "FLOAT_VEC2", buffer: buf_index.primary as i8, component_count: 2, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::TexCoord], byte_stride: stride}),
-                    color: attributes.contains(OptionalVertexAttribute::COLOR).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 4, component_type: "UNSIGNED_BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::Color], byte_stride: stride}),
-                    projected_pos: attributes.contains(OptionalVertexAttribute::PROJECTED_POS).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::ProjectedPos], byte_stride: stride}),
-                    deviations: (num_deviations > 0).then(|| VertexAttribute { kind: deviations_kind, buffer: buf_index.primary as i8, component_count: num_deviations, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::Deviations], byte_stride: stride}),
+                    position: VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.pos as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::POSITION], byte_stride: 0 },
+                    normal: attributes.contains(OptionalVertexAttribute::NORMAL).then(|| VertexAttribute { kind: "FLOAT_VEC3", buffer: buf_index.primary as i8, component_count: 3, component_type: "BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::NORMAL], byte_stride: stride }),
+                    material: has_materials.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::MATERIAL_INDEX], byte_stride: stride}),
+                    object_id: has_object_ids.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::OBJECT_ID], byte_stride: stride}),
+                    tex_coord: attributes.contains(OptionalVertexAttribute::TEX_COORD).then(|| VertexAttribute { kind: "FLOAT_VEC2", buffer: buf_index.primary as i8, component_count: 2, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::TEX_COORD], byte_stride: stride}),
+                    color: attributes.contains(OptionalVertexAttribute::COLOR).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 4, component_type: "UNSIGNED_BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::COLOR], byte_stride: stride}),
+                    projected_pos: attributes.contains(OptionalVertexAttribute::PROJECTED_POS).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::PROJECTED_POS], byte_stride: stride}),
+                    deviations: (num_deviations > 0).then(|| VertexAttribute { kind: deviations_kind, buffer: buf_index.primary as i8, component_count: num_deviations, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::DEVIATIONS], byte_stride: stride}),
                     triangles0: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 0, byte_stride: 18}),
                     triangles1: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 6, byte_stride: 18}),
                     triangles2: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 12, byte_stride: 18}),
@@ -1105,12 +1125,13 @@ macro_rules! impl_parser {
                     };
 
                     for sub_mesh in group_meshes.iter() {
-                        for attrib in attributes.iter()
-                            .map(|attribute| attribute.into())
-                            .chain((*num_deviations > 0).then_some(Attribute::Deviations))
-                            .chain(has_materials.then_some(Attribute::MaterialIndex))
-                            .chain(has_object_ids.then_some(Attribute::ObjectId))
-                        {
+                        let mut attributes = Attribute::from_bits_truncate(attributes.bits());
+                        if *num_deviations > 0 {
+                            attributes.insert(Attribute::DEVIATIONS);
+                        }
+                        attributes.insert(Attribute::MATERIAL_INDEX);
+                        attributes.insert(Attribute::OBJECT_ID);
+                        for attrib in attributes.into_iter() {
                             let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
                             let offset = attrib_offsets[attrib] as usize;
                             sub_mesh.interleave_attribute(
@@ -1161,7 +1182,7 @@ macro_rules! impl_parser {
 
                         sub_mesh.interleave_attribute(
                             bytemuck::cast_slice_mut(&mut position_buffer),
-                            Attribute::Position,
+                            Attribute::POSITION,
                             *num_deviations,
                             vertex_offset * position_stride,
                             position_stride,
