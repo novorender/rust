@@ -26,6 +26,8 @@ hashbrown = "0.14.1"
 endianness = "0.2.0"
 anyhow = "1.0.75"
 cap = { version = "0.1.2", features = ["stats"], optional = true }
+glam = "0.24.2"
+densevec = "0.5.1"
 
 [target.'cfg(not(target_family="wasm"))'.dependencies]
 log = "0.4.20"
