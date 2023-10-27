@@ -103,7 +103,7 @@ impl<'a> Parser<'a> {
 
     pub fn read_bounds(&mut self, len: u32) -> BoundsSlice<'a> {
         BoundsSlice {
-            _box: self.read_aabb(len),
+            box_: self.read_aabb(len),
             sphere: self.read_bounding_sphere(len),
         }
     }

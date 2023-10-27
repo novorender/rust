@@ -618,9 +618,9 @@ macro_rules! impl_parser {
                 let id = to_hex(self.hash);
                 let f32_offset = self.offset.into();
                 let bounds = Bounds {
-                    _box: AABB {
-                        min: self.bounds._box.min + f32_offset,
-                        max: self.bounds._box.max + f32_offset,
+                    box_: AABB {
+                        min: self.bounds.box_.min + f32_offset,
+                        max: self.bounds.box_.max + f32_offset,
                     },
                     sphere: BoundingSphere {
                         origo: self.bounds.sphere.origo + f32_offset,

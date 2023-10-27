@@ -154,7 +154,7 @@ pub struct BoundingSphere {
 #[wasm_bindgen(js_name = Bounds_2_0)]
 pub struct Bounds {
     #[soa_nested]
-    pub _box: AABB,
+    pub box_: AABB,
     #[soa_nested]
     pub sphere: BoundingSphere,
 }
