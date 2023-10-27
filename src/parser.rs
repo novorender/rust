@@ -342,7 +342,7 @@ impl VertexAttribute {
 }
 
 #[wasm_bindgen]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct VertexAttributes {
     pub position: VertexAttribute,
     pub normal: Option<VertexAttribute>,
@@ -556,8 +556,12 @@ macro_rules! impl_parser {
                     if num_deviations > 0 {
                         attr.insert(Attribute::DEVIATIONS);
                     }
-                    attr.insert(Attribute::MATERIAL_INDEX);
-                    attr.insert(Attribute::OBJECT_ID);
+                    if has_materials {
+                        attr.insert(Attribute::MATERIAL_INDEX);
+                    }
+                    if has_object_ids {
+                        attr.insert(Attribute::OBJECT_ID);
+                    }
                     attr.into_iter()
                 },
                 num_deviations
@@ -804,19 +808,9 @@ macro_rules! impl_parser {
             #[wasm_bindgen(skip)]
             pub possible_buffers: PossibleBuffers,
             #[wasm_bindgen(skip)]
-            pub num_deviations: u8,
-            #[wasm_bindgen(skip)]
-            pub attributes: OptionalVertexAttribute,
-            #[wasm_bindgen(skip)]
-            pub has_materials: bool,
-            #[wasm_bindgen(skip)]
-            pub has_object_ids: bool,
-            #[wasm_bindgen(skip)]
-            pub vertex_stride: usize,
-            #[wasm_bindgen(skip)]
             pub vertex_buffer_index: VertexBufferIndex,
-            #[wasm_bindgen(skip)]
-            pub attrib_offsets: Offsets,
+            #[wasm_bindgen(js_name = "vertexAttributes")]
+            pub vertex_attributes: VertexAttributes,
         }
 
         #[wasm_bindgen(js_class = [<ReturnSubMesh $version>])]
@@ -841,44 +835,6 @@ macro_rules! impl_parser {
                 js_value.into()
             }
 
-            #[wasm_bindgen(getter)]
-            #[wasm_bindgen(js_name = "vertexAttributes")]
-            pub fn vertex_attributes(&mut self) -> VertexAttributes {
-                let buf_index = &self.vertex_buffer_index;
-                let attributes = &self.attributes;
-                let has_materials = self.has_materials;
-                let has_object_ids = self.has_object_ids;
-                let num_deviations = self.num_deviations;
-                let has_triangle_pos_buffer = buf_index.tri_pos.is_some();
-                let has_triangle_object_id_buffer = buf_index.tri_id.is_some();
-                let stride = self.vertex_stride as u32;
-                let deviations_kind = if num_deviations == 0 || num_deviations == 1 {
-                    "FLOAT"
-                }else if num_deviations == 3 {
-                    "FLOAT_VEC3"
-                }else if num_deviations == 4 {
-                    "FLOAT_VEC4"
-                }else{
-                    unreachable!("Number of deviations can be at most 4")
-                };
-                let attrib_offsets = &self.attrib_offsets;
-                VertexAttributes {
-                    position: VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.pos as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::POSITION], byte_stride: 0 },
-                    normal: attributes.contains(OptionalVertexAttribute::NORMAL).then(|| VertexAttribute { kind: "FLOAT_VEC3", buffer: buf_index.primary as i8, component_count: 3, component_type: "BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::NORMAL], byte_stride: stride }),
-                    material: has_materials.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::MATERIAL_INDEX], byte_stride: stride}),
-                    object_id: has_object_ids.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::OBJECT_ID], byte_stride: stride}),
-                    tex_coord: attributes.contains(OptionalVertexAttribute::TEX_COORD).then(|| VertexAttribute { kind: "FLOAT_VEC2", buffer: buf_index.primary as i8, component_count: 2, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::TEX_COORD], byte_stride: stride}),
-                    color: attributes.contains(OptionalVertexAttribute::COLOR).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 4, component_type: "UNSIGNED_BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::COLOR], byte_stride: stride}),
-                    projected_pos: attributes.contains(OptionalVertexAttribute::PROJECTED_POS).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::PROJECTED_POS], byte_stride: stride}),
-                    deviations: (num_deviations > 0).then(|| VertexAttribute { kind: deviations_kind, buffer: buf_index.primary as i8, component_count: num_deviations, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::DEVIATIONS], byte_stride: stride}),
-                    triangles0: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 0, byte_stride: 18}),
-                    triangles1: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 6, byte_stride: 18}),
-                    triangles2: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 12, byte_stride: 18}),
-                    triangles_obj_id: has_triangle_object_id_buffer.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.tri_id.get(), component_count: 1, component_type: "UNSIGNED_INT", normalized: false, byte_offset: 0, byte_stride: 4}),
-                    highlight: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
-                    highlight_tri: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight_tri.get(), component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
-                }
-            }
 
             #[wasm_bindgen(getter)]
             #[wasm_bindgen(js_name = "vertexBuffers")]
@@ -1064,16 +1020,21 @@ macro_rules! impl_parser {
 
                     let position_stride = compute_vertex_position_deviations_offsets(*num_deviations).stride as usize;
                     let triangle_pos_stride = position_stride * 3;
-                    let attrib_offsets = compute_vertex_attributes_offsets(
-                        *attributes,
-                        *num_deviations,
-                        *has_materials,
-                        *has_object_ids
-                    );
-                    let vertex_stride = attrib_offsets.stride as usize;
                     let num_vertices = *num_vertices;
                     let num_indices = *num_indices;
                     let num_triangles = *num_triangles;
+                    let num_deviations = *num_deviations;
+                    let has_materials = *has_materials;
+                    let has_object_ids = *has_object_ids;
+                    let attributes = *attributes;
+                    let attrib_offsets = compute_vertex_attributes_offsets(
+                        attributes,
+                        num_deviations,
+                        has_materials,
+                        has_object_ids
+                    );
+                    let vertex_stride = attrib_offsets.stride as usize;
+
                     let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
@@ -1135,18 +1096,22 @@ macro_rules! impl_parser {
 
                     for sub_mesh in group_meshes.iter() {
                         let mut attributes = Attribute::from_bits_truncate(attributes.bits());
-                        if *num_deviations > 0 {
+                        if num_deviations > 0 {
                             attributes.insert(Attribute::DEVIATIONS);
                         }
-                        attributes.insert(Attribute::MATERIAL_INDEX);
-                        attributes.insert(Attribute::OBJECT_ID);
+                        if has_materials {
+                            attributes.insert(Attribute::MATERIAL_INDEX);
+                        }
+                        if has_object_ids {
+                            attributes.insert(Attribute::OBJECT_ID);
+                        }
                         for attrib in attributes.into_iter() {
                             let dst = &mut vertex_buffer[vertex_offset * vertex_stride ..];
                             let offset = attrib_offsets[attrib] as usize;
                             sub_mesh.interleave_attribute(
                                 dst,
                                 attrib,
-                                *num_deviations,
+                                num_deviations,
                                 offset,
                                 vertex_stride
                             )
@@ -1192,7 +1157,7 @@ macro_rules! impl_parser {
                         sub_mesh.interleave_attribute(
                             bytemuck::cast_slice_mut(&mut position_buffer),
                             Attribute::POSITION,
-                            *num_deviations,
+                            num_deviations,
                             vertex_offset * position_stride,
                             position_stride,
                         );
@@ -1222,16 +1187,15 @@ macro_rules! impl_parser {
                         // initialize highlight buffer
                         let highlight_index = highlights.indices
                             .get(sub_mesh.object_id as usize)
-                            .copied();
+                            .copied()
+                            .unwrap_or(0);
                         let sub_mesh_end_vertex = vertex_offset + sub_mesh.vertices.len as usize;
                         let sub_mesh_end_triangle = triangle_offset + sub_mesh.indices.len() as usize / 3;
-                        if let Some(highlight_index) = highlight_index {
-                            highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
+                        highlight_buffer[vertex_offset .. sub_mesh_end_vertex ]
+                            .fill(highlight_index);
+                        if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
+                            highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
                                 .fill(highlight_index);
-                            if let Some(highlight_buffer_tri) = &mut highlight_buffer_tri {
-                                highlight_buffer_tri[triangle_offset .. sub_mesh_end_triangle]
-                                    .fill(highlight_index);
-                            }
                         }
 
                         // update object ranges
@@ -1371,6 +1335,37 @@ macro_rules! impl_parser {
 
                     object_ranges.sort_unstable_by_key(|obj_range| obj_range.object_id);
 
+
+                    let buf_index = &vertex_buffer_index;
+                    let has_triangle_pos_buffer = buf_index.tri_pos.is_some();
+                    let has_triangle_object_id_buffer = buf_index.tri_id.is_some();
+                    let stride = vertex_stride as u32;
+                    let deviations_kind = if num_deviations == 0 || num_deviations == 1 {
+                        "FLOAT"
+                    }else if num_deviations == 3 {
+                        "FLOAT_VEC3"
+                    }else if num_deviations == 4 {
+                        "FLOAT_VEC4"
+                    }else{
+                        unreachable!("Number of deviations can be at most 4")
+                    };
+                    let vertex_attributes = VertexAttributes {
+                        position: VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.pos as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::POSITION], byte_stride: 0 },
+                        normal: attributes.contains(OptionalVertexAttribute::NORMAL).then(|| VertexAttribute { kind: "FLOAT_VEC3", buffer: buf_index.primary as i8, component_count: 3, component_type: "BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::NORMAL], byte_stride: stride }),
+                        material: has_materials.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::MATERIAL_INDEX], byte_stride: stride}),
+                        object_id: has_object_ids.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.primary as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: attrib_offsets[Attribute::OBJECT_ID], byte_stride: stride}),
+                        tex_coord: attributes.contains(OptionalVertexAttribute::TEX_COORD).then(|| VertexAttribute { kind: "FLOAT_VEC2", buffer: buf_index.primary as i8, component_count: 2, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::TEX_COORD], byte_stride: stride}),
+                        color: attributes.contains(OptionalVertexAttribute::COLOR).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 4, component_type: "UNSIGNED_BYTE", normalized: true, byte_offset: attrib_offsets[Attribute::COLOR], byte_stride: stride}),
+                        projected_pos: attributes.contains(OptionalVertexAttribute::PROJECTED_POS).then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.primary as i8, component_count: 3, component_type: "SHORT", normalized: true, byte_offset: attrib_offsets[Attribute::PROJECTED_POS], byte_stride: stride}),
+                        deviations: (num_deviations > 0).then(|| VertexAttribute { kind: deviations_kind, buffer: buf_index.primary as i8, component_count: num_deviations, component_type: "HALF_FLOAT", normalized: false, byte_offset: attrib_offsets[Attribute::DEVIATIONS], byte_stride: stride}),
+                        triangles0: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 0, byte_stride: 18}),
+                        triangles1: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 6, byte_stride: 18}),
+                        triangles2: has_triangle_pos_buffer.then(|| VertexAttribute { kind: "FLOAT_VEC4", buffer: buf_index.tri_pos.get(), component_count: 3, component_type: "SHORT", normalized: true, byte_offset: 12, byte_stride: 18}),
+                        triangles_obj_id: has_triangle_object_id_buffer.then(|| VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.tri_id.get(), component_count: 1, component_type: "UNSIGNED_INT", normalized: false, byte_offset: 0, byte_stride: 4}),
+                        highlight: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight as i8, component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
+                        highlight_tri: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight_tri.get(), component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
+                    };
+
                     Some(ReturnSubMesh{
                         material_type: *material_type,
                         primitive_type: *primitive_type,
@@ -1379,15 +1374,10 @@ macro_rules! impl_parser {
                         object_ranges: Some(object_ranges),
                         vertex_buffer_index,
                         possible_buffers,
-                        num_deviations: *num_deviations,
                         indices,
                         base_color_texture,
                         draw_ranges: Some(draw_ranges),
-                        attrib_offsets,
-                        attributes: *attributes,
-                        has_materials: *has_materials,
-                        has_object_ids: *has_object_ids,
-                        vertex_stride
+                        vertex_attributes,
                     })
                 }).collect();
 
