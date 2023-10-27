@@ -1,6 +1,4 @@
 
-use std::borrow::Cow;
-
 use crate::{types_2_1::*, parser::{_2_1::{Child, ReturnSubMesh}, Indices}};
 use densevec::DenseVec;
 use glam::*;
@@ -142,7 +140,6 @@ impl OutlineRenderer {
             }
         }
 
-        let mut lines = 0;
         line_cluster_arrays.into_iter().map(move |(object_id, vertices)| {
             LineCluster  {
                 object_id: object_id as u32,
