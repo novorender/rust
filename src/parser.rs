@@ -472,6 +472,15 @@ pub enum Indices {
     NumIndices(u32),
 }
 
+impl Indices {
+    pub fn is_buffer(&self) -> bool {
+        if let Indices::NumIndices(_) = self {
+            true
+        }else{
+            false
+        }
+    }
+}
 // substitute with macro_rules! ... to get proper autcomplete on the implementation
 // use crate::types_2_0::*;
 // use crate::reader_2_0::*;

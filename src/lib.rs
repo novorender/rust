@@ -24,6 +24,7 @@ pub mod range;
 pub mod parser;
 pub mod ktx;
 pub mod interleaved;
+pub mod outlines;
 mod gl_bindings;
 
 
