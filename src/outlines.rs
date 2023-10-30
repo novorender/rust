@@ -2,6 +2,8 @@
 use crate::{types_2_1::*, parser::{_2_1::{NodeData, ReturnSubMesh}, Indices}};
 use densevec::DenseVec;
 use glam::*;
+use js_sys::{Uint16Array, Int16Array, Uint32Array, Float32Array};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Clone, Copy)]
 pub struct OctreeNode<'a> {
@@ -184,7 +186,7 @@ impl OutlineRenderer {
 
                     let lines = match &mesh.indices {
                         Indices::IndexBuffer16(idx_buff) => {
-                            self.intersect_triangles(
+                            intersect_triangles(
                                 &idx_buff[begin .. end],
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
@@ -192,7 +194,7 @@ impl OutlineRenderer {
                             )
                         }
                         Indices::IndexBuffer32(idx_buff) => {
-                            self.intersect_triangles(
+                            intersect_triangles(
                                 &idx_buff[begin .. end],
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
@@ -203,7 +205,7 @@ impl OutlineRenderer {
                     };
 
                     if lines > 0 {
-                        let end_offset = lines as usize * 2;
+                        let end_offset = lines as usize * 4;
                         let (vertices, new_buffer) = buffer.split_at_mut(end_offset);
                         buffer = new_buffer;
                         let line_cluster = LineClusterRef{
@@ -221,44 +223,98 @@ impl OutlineRenderer {
             .collect();
         (clusters, buffer)
     }
+}
 
-    // TODO: usize can't be converted from u32 directly, we are doing two conversions for u16 -> u32 -> usize
-    // surely optimized by the compiler but check
-    pub fn intersect_triangles<I: Into<u32> + Copy>(&self, idx: &[I], pos: &[i16], model_to_plane_mat: Mat4, output: &mut [f32]) -> u32 {
-        let mut offset = 0;
-        let mut emit = move |x, y| {
-            output[offset + 0] = x;
-            output[offset + 1] = y;
-            offset += 2;
-        };
+// TODO: usize can't be converted from u32 directly, we are doing two conversions for u16 -> u32 -> usize
+// surely optimized by the compiler but check
+pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], pos: &[i16], model_to_plane_mat: Mat4, output: &mut [f32]) -> u32 {
+    let mut offset = 0;
+    let mut emit = move |x, y| {
+        output[offset + 0] = x;
+        output[offset + 1] = y;
+        offset += 2;
+    };
 
-        debug_assert_eq!(idx.len() % 3, 0);
+    debug_assert_eq!(idx.len() % 3, 0);
 
-        let mut n = 0;
-        for triangle in idx.chunks(3) {
-            let i0 = triangle[0].into() as usize;
-            let i1 = triangle[1].into() as usize;
-            let i2 = triangle[2].into() as usize;
-            let p0 = vec4(pos[i0 * 3 + 0] as f32, pos[i0 * 3 + 1] as f32, pos[i0 * 3 + 2] as f32, 1.);
-            let p1 = vec4(pos[i1 * 3 + 0] as f32, pos[i1 * 3 + 1] as f32, pos[i1 * 3 + 2] as f32, 1.);
-            let p2 = vec4(pos[i2 * 3 + 0] as f32, pos[i2 * 3 + 1] as f32, pos[i2 * 3 + 2] as f32, 1.);
+    let mut n = 0;
+    for triangle in idx.chunks(3) {
+        let i0 = triangle[0].into() as usize;
+        let i1 = triangle[1].into() as usize;
+        let i2 = triangle[2].into() as usize;
+        let p0 = vec4(pos[i0 * 3 + 0] as f32, pos[i0 * 3 + 1] as f32, pos[i0 * 3 + 2] as f32, 1.);
+        let p1 = vec4(pos[i1 * 3 + 0] as f32, pos[i1 * 3 + 1] as f32, pos[i1 * 3 + 2] as f32, 1.);
+        let p2 = vec4(pos[i2 * 3 + 0] as f32, pos[i2 * 3 + 1] as f32, pos[i2 * 3 + 2] as f32, 1.);
 
-            let p0 = model_to_plane_mat * p0;
-            let p1 = model_to_plane_mat * p1;
-            let p2 = model_to_plane_mat * p2;
+        let p0 = model_to_plane_mat * p0;
+        let p1 = model_to_plane_mat * p1;
+        let p2 = model_to_plane_mat * p2;
 
-            let gt0 = p0.z > 0.; let gt1 = p1.z > 0.; let gt2 = p2.z > 0.;
-            let lt0 = p0.z < 0.; let lt1 = p1.z < 0.; let lt2 = p2.z < 0.;
-            if (gt0 || gt1 || gt2) && (lt0 || lt1 || lt2) {
-                if intersect_edge(p0, p1, &mut emit) { n+=1 };
-                if intersect_edge(p0, p1, &mut emit) { n+=1 };
-                if intersect_edge(p0, p1, &mut emit) { n+=1 };
-                debug_assert_eq!(n % 2, 0)
-            }
+        let gt0 = p0.z > 0.; let gt1 = p1.z > 0.; let gt2 = p2.z > 0.;
+        let lt0 = p0.z < 0.; let lt1 = p1.z < 0.; let lt2 = p2.z < 0.;
+        if (gt0 || gt1 || gt2) && (lt0 || lt1 || lt2) {
+            if intersect_edge(p0, p1, &mut emit) { n+=1 };
+            if intersect_edge(p1, p2, &mut emit) { n+=1 };
+            if intersect_edge(p2, p0, &mut emit) { n+=1 };
+            debug_assert_eq!(n % 2, 0)
         }
-
-        n
     }
+
+    n / 2
+}
+
+#[wasm_bindgen]
+pub struct WasmMat4(Mat4);
+
+#[wasm_bindgen]
+pub fn allocate_mat4(mat: &[f32]) -> WasmMat4 {
+    WasmMat4(Mat4::from_cols_slice(mat))
+}
+
+#[wasm_bindgen]
+pub fn intersect_triangles_u16(
+    idx: Uint16Array,
+    pos: Int16Array,
+    model_to_plane_mat: &WasmMat4,
+    output: Float32Array) -> u32
+{
+    let idx = unsafe{ std::slice::from_raw_parts(
+        idx.byte_offset() as usize as *const u16,
+        idx.length() as usize
+    )};
+    let pos = unsafe{ std::slice::from_raw_parts(
+        pos.byte_offset() as usize as *const i16,
+        pos.length() as usize
+    )};
+    let output: &mut [f32] = unsafe{ std::slice::from_raw_parts_mut(
+        output.byte_offset() as usize as *mut f32,
+        output.length() as usize
+    )};
+
+    intersect_triangles(idx, pos, model_to_plane_mat.0, output)
+}
+
+#[wasm_bindgen]
+pub fn intersect_triangles_u32(
+    idx: Uint32Array,
+    pos: Int16Array,
+    model_to_plane_mat: &WasmMat4,
+    output: Float32Array) -> u32
+{
+    let idx = unsafe{ std::slice::from_raw_parts(
+        idx.byte_offset() as usize as *const u32,
+        idx.length() as usize
+    )};
+    let pos = unsafe{ std::slice::from_raw_parts(
+        pos.byte_offset() as usize as *const i16,
+        pos.length() as usize
+    )};
+    let output: &mut [f32] = unsafe{ std::slice::from_raw_parts_mut(
+        output.byte_offset() as usize as *mut f32,
+        output.length() as usize
+    )};
+
+    intersect_triangles(idx, pos, model_to_plane_mat.0, output)
 }
 
 #[inline(always)]
