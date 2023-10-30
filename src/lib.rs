@@ -4,6 +4,10 @@
 use std::alloc;
 #[cfg(feature="cap")]
 use cap::Cap;
+use js_sys::Float32Array;
+use js_sys::Int16Array;
+use js_sys::Uint16Array;
+use js_sys::Uint32Array;
 use js_sys::Uint8Array;
 
 #[cfg(feature="cap")]
@@ -66,11 +70,42 @@ pub struct Arena(*mut Bump);
 impl Arena {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Arena {
-        Arena(Box::into_raw(Box::new(Bump::with_capacity(20 * 1024 * 1024))))
+        let bump = Bump::with_capacity(100 * 1024 * 1024);
+        bump.set_allocation_limit(Some(100 * 1024 * 1024));
+        Arena(Box::into_raw(Box::new(bump)))
     }
 
     pub fn clone(&self) -> Arena {
         Arena(self.0)
+    }
+
+    pub fn allocate_u16(&self, size: usize) -> Uint16Array {
+        let bump = unsafe {&*self.0};
+        let memory = bump.alloc_slice_fill_default(size);
+        unsafe{ Uint16Array::view(memory) }
+    }
+
+    pub fn allocate_u32(&self, size: usize) -> Uint32Array {
+        let bump = unsafe {&*self.0};
+        let memory = bump.alloc_slice_fill_default(size);
+        unsafe{ Uint32Array::view(memory) }
+    }
+
+    pub fn allocate_i16(&self, size: usize) -> Int16Array {
+        let bump = unsafe {&*self.0};
+        let memory = bump.alloc_slice_fill_default(size);
+        unsafe{ Int16Array::view(memory) }
+    }
+
+    pub fn allocate_f32(&self, size: usize) -> Float32Array {
+        let bump = unsafe {&*self.0};
+        let memory = bump.alloc_slice_fill_default(size);
+        unsafe{ Float32Array::view(memory) }
+    }
+
+    pub fn reset(&mut self) {
+        let bump = unsafe {&mut *self.0};
+        bump.reset()
     }
 }
 
