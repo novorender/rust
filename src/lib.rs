@@ -4,6 +4,7 @@
 use std::alloc;
 #[cfg(feature="cap")]
 use cap::Cap;
+use js_sys::Uint8Array;
 
 #[cfg(feature="cap")]
 #[global_allocator]
@@ -14,6 +15,8 @@ use js_sys::Array;
 use parser::Highlights;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
+use allocator_api2::vec::Vec;
+use bumpalo::Bump;
 
 pub mod reader_2_0;
 pub mod reader_2_1;
@@ -56,12 +59,27 @@ pub fn init_console() {
     console_error_panic_hook::set_once();
 }
 
+#[wasm_bindgen]
+pub struct Arena(*mut Bump);
+
+#[wasm_bindgen]
+impl Arena {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Arena {
+        Arena(Box::into_raw(Box::new(Bump::with_capacity(20 * 1024 * 1024))))
+    }
+
+    pub fn clone(&self) -> Arena {
+        Arena(self.0)
+    }
+}
 
 #[wasm_bindgen]
 pub struct Schema {
     _data: Vec<u8>,
     version: &'static str,
     schema: *mut c_void,
+    arena: Arena,
 }
 
 #[wasm_bindgen]
@@ -96,21 +114,45 @@ impl Schema {
 
 #[wasm_bindgen]
 impl Schema {
-    pub fn parse_2_0(data: Vec<u8>) -> Schema {
+    pub fn parse_2_0(data_js: &Uint8Array, arena: Arena) -> Schema {
+        let layout = std::alloc::Layout::from_size_align(data_js.length() as usize, 4)
+            .unwrap();
+        let ptr = unsafe{ &*arena.0 }.alloc_layout(layout);
+        let mut data = unsafe{ Vec::from_raw_parts(
+            ptr.as_ptr(),
+            data_js.length() as usize,
+            data_js.length() as usize
+        ) };
+        // let mut data = Vec::with_capacity_in(data_js.length() as usize, unsafe{ &*arena.0 });
+        // unsafe{ data.set_len(data_js.length() as usize) };
+        data_js.copy_to(&mut data);
         let schema = types_2_0::Schema::parse(&data);
         Schema {
             version: "2.0",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
+            arena
         }
     }
 
-    pub fn parse_2_1(data: Vec<u8>) -> Schema {
+    pub fn parse_2_1(data_js: &Uint8Array, arena: Arena) -> Schema {
+        let layout = std::alloc::Layout::from_size_align(data_js.length() as usize, 4)
+            .unwrap();
+        let ptr = unsafe{ &*arena.0 }.alloc_layout(layout);
+        let mut data = unsafe{ Vec::from_raw_parts(
+            ptr.as_ptr(),
+            data_js.length() as usize,
+            data_js.length() as usize
+        ) };
+        // let mut data = Vec::with_capacity_in(data_js.length() as usize, unsafe{ &*arena.0 });
+        // unsafe{ data.set_len(data_js.length() as usize) };
+        data_js.copy_to(&mut data);
         let schema = types_2_1::Schema::parse(&data);
         Schema {
             version: "2.1",
             schema: Box::into_raw(Box::new(schema)) as *mut c_void,
             _data: data,
+            arena
         }
     }
 
@@ -136,11 +178,13 @@ impl Schema {
         js_value.into()
     }
 
-    pub fn create_highlights(&self, indices: Vec<u8>) -> Highlights {
+    pub fn create_highlights(&self, indices_js: &Uint8Array) -> Highlights {
+        let mut indices = Vec::with_capacity_in(indices_js.length() as usize, unsafe{ &*self.arena.0 });
+        unsafe{ indices.set_len(indices_js.length() as usize) };
+        indices_js.copy_to(&mut indices);
         Highlights { indices }
     }
 
-    // Array<Array> contains 2 Arrays, first is the vertex buffer, the other the textures
     pub fn geometry(&self, enable_outlines: bool, apply_filter: bool, highlights: Highlights) -> NodeGeometry {
         #[cfg(feature="memory-monitor")]
         log!("Currently allocated: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
@@ -170,6 +214,7 @@ impl Schema {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_0::Schema) };
                 let (sub_meshes, textures) = schema.geometry(
+                    unsafe{ &*self.arena.0 },
                     enable_outlines,
                     &highlights,
                     |object_id| !apply_filter || highlights.indices[object_id as usize] != u8::MAX
@@ -191,6 +236,7 @@ impl Schema {
                 // SAFETY: schema is put in a `Box` when created in `Schema::parse`
                 let schema = unsafe{ &*(self.schema as *mut types_2_1::Schema) };
                 let (sub_meshes, index) = schema.geometry(
+                    unsafe{ &*self.arena.0 },
                     enable_outlines,
                     &highlights,
                     |object_id| !apply_filter || highlights.indices[object_id as usize] != u8::MAX
@@ -214,7 +260,6 @@ impl Schema {
     }
 }
 
-// TODO: Check this is valid in wasm-bindgen
 impl Drop for Schema {
     fn drop(&mut self) {
         // SAFETY: schema is put in a `Box` when created in `Schema::parse`
@@ -226,5 +271,7 @@ impl Drop for Schema {
 
         #[cfg(feature="memory-monitor")]
         log!("Currently allocated after dropping schema: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
+
+        unsafe{ &mut *self.arena.0 }.reset();
     }
 }

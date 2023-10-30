@@ -3,11 +3,13 @@ use core::mem::{size_of, align_of};
 
 use half::f16;
 use bitflags::Flags;
+use wasm_bindgen::prelude::*;
+use allocator_api2::vec::Vec;
+use bumpalo::Bump;
 
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
 use crate::ktx::*;
-use wasm_bindgen::prelude::*;
 
 pub struct Optionals<'a, const NUM_OPTIONALS: usize> {
     flags: &'a [u8; NUM_OPTIONALS],
@@ -245,9 +247,16 @@ fn test_to_hex() {
 }
 
 #[wasm_bindgen]
-#[derive(Default)]
 pub struct Highlights {
-    pub(crate) indices: Vec<u8>,
+    pub(crate) indices: Vec<u8, &'static Bump>,
+}
+
+impl Highlights {
+    pub fn new(arena: &'static Bump) -> Highlights {
+        Highlights {
+            indices: Vec::new_in(arena)
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -361,13 +370,20 @@ pub struct VertexAttributes {
 }
 
 pub struct PossibleBuffers {
-    pub pos: Vec<i16>,
-    pub primary: Vec<u8>,
-    pub tri_pos: Option<Vec<i16>>,
-    pub tri_id: Option<Vec<u32>>,
-    pub highlight: Vec<u8>,
-    pub highlight_tri: Option<Vec<u8>>,
+    pub pos: Vec<i16, &'static Bump>,
+    pub primary: Vec<u8, &'static Bump>,
+    pub tri_pos: Option<Vec<i16, &'static Bump>>,
+    pub tri_id: Option<Vec<u32, &'static Bump>>,
+    pub highlight: Vec<u8, &'static Bump>,
+    pub highlight_tri: Option<Vec<u8, &'static Bump>>,
 }
+
+// impl Drop for PossibleBuffers {
+//     fn drop(&mut self) {
+//         let primary = std::mem::replace(&mut self.primary, Vec::new());
+//         std::mem::forget(primary)
+//     }
+// }
 
 #[derive(Copy, Clone)]
 pub struct OptionalBufferIndex(i8);
@@ -467,8 +483,8 @@ impl VertexBufferIndex {
 }
 
 pub enum Indices {
-    IndexBuffer32(Vec<u32>),
-    IndexBuffer16(Vec<u16>),
+    IndexBuffer32(Vec<u32, &'static Bump>),
+    IndexBuffer16(Vec<u16, &'static Bump>),
     NumIndices(u32),
 }
 
@@ -798,13 +814,13 @@ macro_rules! impl_parser {
             #[wasm_bindgen(js_name = "numTriangles")]
             pub num_triangles: u32,
             #[wasm_bindgen(skip)]
-            pub object_ranges: Option<Vec<MeshObjectRange>>,
+            pub object_ranges: Option<Vec<MeshObjectRange, &'static Bump>>,
             #[wasm_bindgen(skip)]
             pub indices: Indices,
             #[wasm_bindgen(js_name = "baseColorTexture")]
             pub base_color_texture: Option<u32>,
             #[wasm_bindgen(skip)]
-            pub draw_ranges: Option<Vec<DrawRange>>,
+            pub draw_ranges: Option<Vec<DrawRange, &'static Bump>>,
             #[wasm_bindgen(skip)]
             pub possible_buffers: PossibleBuffers,
             #[wasm_bindgen(skip)]
@@ -934,7 +950,7 @@ macro_rules! impl_parser {
                 })
             }
 
-            pub fn geometry(&self, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh>, Vec<Option<Texture>>){
+            pub fn geometry(&self, arena: &'static Bump, enable_outlines: bool, highlights: &Highlights, filter: impl Fn(u32) -> bool) -> (Vec<ReturnSubMesh, &'static Bump>, Vec<Option<Texture>, &'static Bump>){
                 let mut referenced_textures = HashMap::new();
 
                 struct Group<'a> {
@@ -942,7 +958,7 @@ macro_rules! impl_parser {
                     primitive_type: PrimitiveType,
                     attributes: OptionalVertexAttribute,
                     num_deviations: u8,
-                    group_meshes: Vec<SubMesh<'a>>,
+                    group_meshes: Vec<SubMesh<'a>, &'static Bump>,
                     has_materials: bool,
                     has_object_ids: bool,
                     num_vertices: usize,
@@ -960,6 +976,7 @@ macro_rules! impl_parser {
                 }
 
                 let mut groups = HashMap::new();
+                let mut num_sub_meshes = 0;
                 for sub_mesh in self.sub_meshes(filter) {
                     let SubMesh {
                         material_type,
@@ -985,7 +1002,7 @@ macro_rules! impl_parser {
                         num_deviations,
                         has_materials: false,
                         has_object_ids: false,
-                        group_meshes: Vec::with_capacity(self.sub_mesh.len as usize),
+                        group_meshes: Vec::with_capacity_in(self.sub_mesh.len as usize, arena),
                         num_vertices: 0,
                         num_indices: 0,
                         num_triangles: 0,
@@ -1000,9 +1017,12 @@ macro_rules! impl_parser {
                     if primitive_type == PrimitiveType::Triangles {
                         group.num_triangles += (if idx_cnt > 0 { idx_cnt } else { vtx_cnt } as f32 / 3.).round() as usize;
                     }
+                    num_sub_meshes += 1;
                 }
 
-                let sub_meshes = groups.values().filter_map(|Group {
+                let mut sub_meshes = Vec::with_capacity_in(num_sub_meshes, arena);
+
+                for Group {
                     material_type,
                     primitive_type,
                     attributes,
@@ -1013,9 +1033,9 @@ macro_rules! impl_parser {
                     num_vertices,
                     num_indices,
                     num_triangles,
-                }| {
+                } in groups.values() {
                     if group_meshes.is_empty() {
-                        return None;
+                        continue
                     }
 
                     let position_stride = compute_vertex_position_deviations_offsets(*num_deviations).stride as usize;
@@ -1035,22 +1055,31 @@ macro_rules! impl_parser {
                     );
                     let vertex_stride = attrib_offsets.stride as usize;
 
-                    let mut vertex_buffer = Vec::with_capacity(num_vertices * vertex_stride);
+                    let mut vertex_buffer = Vec::with_capacity_in(num_vertices * vertex_stride, arena);
                     unsafe{ vertex_buffer.set_len(num_vertices * vertex_stride) };
 
-                    let mut triangle_pos_buffer: Option<Vec<i16>>;
-                    let mut triangle_object_id_buffer: Option<Vec<u32>>;
+                    // let layout = std::alloc::Layout::from_size_align(num_vertices * vertex_stride, 4)
+                    //     .unwrap();
+                    // let ptr = arena.alloc_layout(layout);
+                    // let mut vertex_buffer = unsafe{ Vec::from_raw_parts(
+                    //     ptr.as_ptr(),
+                    //     num_vertices * vertex_stride,
+                    //     num_vertices * vertex_stride
+                    // ) };
+
+                    let mut triangle_pos_buffer: Option<Vec<i16, &'static Bump>>;
+                    let mut triangle_object_id_buffer: Option<Vec<u32, &'static Bump>>;
                     let mut highlight_buffer_tri;
                     if enable_outlines && *primitive_type == PrimitiveType::Triangles {
-                        let mut buffer = Vec::with_capacity(num_triangles * triangle_pos_stride * size_of::<i16>());
+                        let mut buffer = Vec::with_capacity_in(num_triangles * triangle_pos_stride * size_of::<i16>(), arena);
                         unsafe{ buffer.set_len(num_triangles * triangle_pos_stride * size_of::<i16>()) };
                         triangle_pos_buffer = Some(buffer);
 
-                        let mut buffer = Vec::with_capacity(num_triangles * size_of::<u32>());
+                        let mut buffer = Vec::with_capacity_in(num_triangles * size_of::<u32>(), arena);
                         unsafe{ buffer.set_len(num_triangles * size_of::<u32>()) };
                         triangle_object_id_buffer = Some(buffer);
 
-                        let mut buffer = Vec::with_capacity(num_triangles);
+                        let mut buffer = Vec::with_capacity_in(num_triangles, arena);
                         unsafe{ buffer.set_len(num_triangles) };
                         highlight_buffer_tri = Some(buffer);
                     }else{
@@ -1059,21 +1088,21 @@ macro_rules! impl_parser {
                         highlight_buffer_tri = None;
                     }
 
-                    let mut position_buffer: Vec<i16> = Vec::with_capacity(num_vertices * position_stride / size_of::<i16>());
+                    let mut position_buffer: Vec<i16, &'static Bump> = Vec::with_capacity_in(num_vertices * position_stride / size_of::<i16>(), arena);
                     unsafe{ position_buffer.set_len(num_vertices * position_stride / size_of::<i16>()) };
 
                     let index_buffer_bytes_per_element;
-                    let mut index_buffer_16: Option<Vec<u16>> = None;
-                    let mut index_buffer_32: Option<Vec<u32>> = None;
+                    let mut index_buffer_16: Option<Vec<u16, &'static Bump>> = None;
+                    let mut index_buffer_32: Option<Vec<u32, &'static Bump>> = None;
                      if num_indices != 0 {
                         if num_vertices < u16::MAX as usize {
                             index_buffer_bytes_per_element = Some(size_of::<u16>());
-                            let mut buffer = Vec::with_capacity(num_indices);
+                            let mut buffer = Vec::with_capacity_in(num_indices, arena);
                             unsafe{ buffer.set_len(num_indices) };
                             index_buffer_16 = Some(buffer);
                         }else{
                             index_buffer_bytes_per_element = Some(size_of::<u32>());
-                            let mut buffer = Vec::with_capacity(num_indices);
+                            let mut buffer = Vec::with_capacity_in(num_indices, arena);
                             unsafe{ buffer.set_len(num_indices) };
                             index_buffer_32 = Some(buffer);
                         };
@@ -1081,12 +1110,13 @@ macro_rules! impl_parser {
                         index_buffer_bytes_per_element = None;
                     }
 
-                    let mut highlight_buffer = vec![0; num_vertices];
+                    let mut highlight_buffer = Vec::with_capacity_in(num_vertices, arena);
+                    unsafe{ highlight_buffer.set_len(num_vertices) };
                     let mut index_offset = 0;
                     let mut vertex_offset = 0;
                     let mut triangle_offset = 0;
-                    let mut object_ranges = Vec::with_capacity(group_meshes.len());
-                    let mut draw_ranges = Vec::with_capacity(group_meshes.len());
+                    let mut object_ranges = Vec::with_capacity_in(group_meshes.len(), arena);
+                    let mut draw_ranges = Vec::with_capacity_in(group_meshes.len(), arena);
 
                     let draw_range_begin = if num_indices != 0 {
                         index_offset
@@ -1366,7 +1396,7 @@ macro_rules! impl_parser {
                         highlight_tri: VertexAttribute { kind: "UNSIGNED_INT", buffer: buf_index.highlight_tri.get(), component_count: 1, component_type: "UNSIGNED_BYTE", normalized: false, byte_offset: 0, byte_stride: 0 },
                     };
 
-                    Some(ReturnSubMesh{
+                    sub_meshes.push(ReturnSubMesh{
                         material_type: *material_type,
                         primitive_type: *primitive_type,
                         num_vertices: num_vertices as u32,
@@ -1378,10 +1408,11 @@ macro_rules! impl_parser {
                         base_color_texture,
                         draw_ranges: Some(draw_ranges),
                         vertex_attributes,
-                    })
-                }).collect();
+                    });
+                }
 
-                let mut textures = vec![None; self.texture_info.len as usize];
+                let mut textures = Vec::new_in(arena);
+                textures.resize(self.texture_info.len as usize, None);
                 for (index, reference) in referenced_textures {
                     let semantic = reference.semantic;
                     let transform = reference.transform;

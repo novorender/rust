@@ -98,11 +98,14 @@ mod benches {
         let mut file = std::fs::File::open("8AC1B48A77DC9D0E0AE8DDC366379FFF").unwrap();
         let mut data = Vec::new();
         file.read_to_end(&mut data).unwrap();
+        let bump = bumpalo::Bump::new();
+        let arena = unsafe{ &*(&bump as *const bumpalo::Bump) };
         let schema = wasm_parser::types_2_1::Schema::parse(&data);
         b.iter(|| {
             let _ = schema.geometry(
+                arena,
                 false,
-                &wasm_parser::parser::Highlights::default(),
+                &wasm_parser::parser::Highlights::new(arena),
                 |_| true
             );
         });

@@ -26,6 +26,8 @@ hashbrown = "0.14.1"
 endianness = "0.2.0"
 anyhow = "1.0.75"
 cap = { version = "0.1.2", features = ["stats"], optional = true }
+bumpalo = { version = "3.14.0", features = ["allocator-api2"] }
+allocator-api2 = "0.2.16"
 glam = "0.24.2"
 densevec = "0.5.1"
 

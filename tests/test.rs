@@ -36,10 +36,13 @@ fn test_parser() -> anyhow::Result<()>{
         .collect::<Vec<_>>();
 
     // TODO: test something about the children
+    let bump = bumpalo::Bump::new();
+    let arena = unsafe{ &*(&bump as *const bumpalo::Bump) };
 
     let (_sub_meshes, _textures)  = schema.geometry(
+        arena,
         false,
-        &Highlights::default(),
+        &Highlights::new(arena),
         |_| true
     );
 
@@ -99,9 +102,13 @@ async fn test_parser_wasm() -> Result<(), JsValue> {
     performance.mark("end children")?;
     performance.measure_with_start_mark_and_end_mark("children", "start children", "end children")?;
 
+    let bump = bumpalo::Bump::new();
+    let arena = unsafe{ &*(&bump as *const bumpalo::Bump) };
+
     let (_sub_meshes, _textures) = schema.geometry(
+        arena,
         false,
-        &Highlights::default(),
+        &Highlights::new(arena),
         |_| true
     );
 
