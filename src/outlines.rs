@@ -1,16 +1,16 @@
 
-use crate::{types_2_1::*, parser::{_2_1::{Child, ReturnSubMesh}, Indices}};
+use crate::{types_2_1::*, parser::{_2_1::{NodeData, ReturnSubMesh}, Indices}};
 use densevec::DenseVec;
 use glam::*;
 
 #[derive(Clone, Copy)]
 pub struct OctreeNode<'a> {
-    data: &'a Child,
-    geometry: &'a [ReturnSubMesh]
+    data: &'a NodeData,
+    geometry: &'a [ReturnSubMesh],
 }
 
 impl<'a> OctreeNode<'a> {
-    pub fn new(data: &'a Child, geometry: &'a [ReturnSubMesh]) -> OctreeNode<'a> {
+    pub fn new(data: &'a NodeData, geometry: &'a [ReturnSubMesh]) -> OctreeNode<'a> {
         OctreeNode { data, geometry }
     }
 

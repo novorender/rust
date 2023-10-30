@@ -643,7 +643,7 @@ macro_rules! impl_parser {
         }
 
         impl<'a> ChildInfo<'a> {
-            pub fn to_child(&self, filter: impl Fn(u32) -> bool) -> Child {
+            pub fn to_child(&self, filter: impl Fn(u32) -> bool) -> NodeData {
                 let id = to_hex(self.hash);
                 let f32_offset = self.offset.into();
                 let bounds = Bounds {
@@ -663,7 +663,7 @@ macro_rules! impl_parser {
                 let parent_primitives = 0; // This gets a value from an empty array in the original
                 let primitives_delta = primitives - parent_primitives;
 
-                Child {
+                NodeData {
                     id,
                     child_index: self.child_index,
                     child_mask: self.child_mask,
@@ -1437,7 +1437,7 @@ pub mod _2_0 {
     impl_parser!(_2_0, Child);
 
     #[wasm_bindgen(js_name = Child_2_0)]
-    pub struct Child {
+    pub struct NodeData {
         pub(crate) id: String,
         pub child_index: u8,
         pub child_mask: u32,
@@ -1452,14 +1452,14 @@ pub mod _2_0 {
     }
 
     #[wasm_bindgen(js_class = Child_2_0)]
-    impl Child {
+    impl NodeData {
         pub fn id(&self) -> String {
             self.id.clone()
         }
     }
 
     impl<'a> types_2_0::Schema<'a> {
-        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child> + '_ {
+        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = NodeData> + '_ {
             self.child_info.iter(
                 self.hash_bytes,
                 self.sub_mesh_projection.clone(),
@@ -1477,7 +1477,7 @@ pub mod _2_1 {
     impl_parser!(_2_1, Child, descendant_object_ids);
 
     #[wasm_bindgen(js_name = Child_2_1)]
-    pub struct Child {
+    pub struct NodeData {
         id: String,
         pub child_index: u8,
         pub child_mask: u32,
@@ -1496,7 +1496,7 @@ pub mod _2_1 {
     }
 
     #[wasm_bindgen(js_class = Child_2_1)]
-    impl Child {
+    impl NodeData {
         pub fn id(&self) -> String {
             self.id.clone()
         }
@@ -1513,14 +1513,14 @@ pub mod _2_1 {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    impl Child {
+    impl NodeData {
         pub fn descendant_object_ids(&self) -> &[u32] {
             &self.descendant_object_ids
         }
     }
 
     impl<'a> types_2_1::Schema<'a> {
-        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = Child> + '_ {
+        pub fn children(&self, filter: impl Fn(u32) -> bool + Copy + 'a) -> impl ExactSizeIterator<Item = NodeData> + '_ {
             self.child_info.iter(
                 self.hash_bytes,
                 self.sub_mesh_projection.clone(),
