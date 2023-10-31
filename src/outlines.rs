@@ -278,22 +278,6 @@ pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], pos: &[i16], model_to
         let p1 = model_to_plane_matx4 * p1;
         let p2 = model_to_plane_matx4 * p2;
 
-        // for i in 0..4 {
-        //     let p0 = unsafe{ vec3(p0.x.extract_unchecked(i), p0.y.extract_unchecked(i), p0.z.extract_unchecked(i)) };
-        //     let p1 = unsafe{ vec3(p1.x.extract_unchecked(i), p1.y.extract_unchecked(i), p1.z.extract_unchecked(i)) };
-        //     let p2 = unsafe{ vec3(p2.x.extract_unchecked(i), p2.y.extract_unchecked(i), p2.z.extract_unchecked(i)) };
-
-        //     let gt0 = p0.z > 0.; let gt1 = p1.z > 0.; let gt2 = p2.z > 0.;
-        //     let lt0 = p0.z < 0.; let lt1 = p1.z < 0.; let lt2 = p2.z < 0.;
-        //     if (gt0 || gt1 || gt2) && (lt0 || lt1 || lt2) {
-        //         if intersect_edge(p0, p1, &mut emit) { n+=1 };
-        //         if intersect_edge(p1, p2, &mut emit) { n+=1 };
-        //         if intersect_edge(p2, p0, &mut emit) { n+=1 };
-        //         debug_assert_eq!(n % 2, 0)
-        //     }
-        // }
-
-
         let zeros = WideF32x4::splat(0.);
         let gt0 = p0.z.simd_gt(zeros); let gt1 = p1.z.simd_gt(zeros); let gt2 = p2.z.simd_gt(zeros);
         let lt0 = p0.z.simd_lt(zeros); let lt1 = p1.z.simd_lt(zeros); let lt2 = p2.z.simd_lt(zeros);
@@ -321,34 +305,21 @@ pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], pos: &[i16], model_to
             };
 
             for i in 0..4 {
-                // let p0 = unsafe{ vec3(p0.x.extract_unchecked(i), p0.y.extract_unchecked(i), p0.z.extract_unchecked(i)) };
-                // let p1 = unsafe{ vec3(p1.x.extract_unchecked(i), p1.y.extract_unchecked(i), p1.z.extract_unchecked(i)) };
-                // let p2 = unsafe{ vec3(p2.x.extract_unchecked(i), p2.y.extract_unchecked(i), p2.z.extract_unchecked(i)) };
-                // let gt0 = p0.z > 0.; let gt1 = p1.z > 0.; let gt2 = p2.z > 0.;
-                // let lt0 = p0.z < 0.; let lt1 = p1.z < 0.; let lt2 = p2.z < 0.;
-                // if (gt0 || gt1 || gt2) && (lt0 || lt1 || lt2) {
-                // if (cond >> i) & 0x1 != 0 {
-                    // if (p0.z <= 0. && p1.z > 0.) || (p1.z <= 0. && p0.z > 0.) {
-                    if (cond0 >> i) & 0x1 != 0 {
-                        let (a0, b0) = unsafe{ ab0.unwrap_unchecked() };
-                        unsafe{ emit(a0.extract_unchecked(i), b0.extract_unchecked(i)) }
-                        n += 1;
-                    }
-                    // if (p1.z <= 0. && p2.z > 0.) || (p2.z <= 0. && p1.z > 0.) {
-                    if (cond1 >> i) & 0x1 != 0 {
-                        let (a1, b1) = unsafe{ ab1.unwrap_unchecked() };
-                        unsafe{ emit(a1.extract_unchecked(i), b1.extract_unchecked(i)) }
-                        n += 1;
-                    }
-                    // if (p2.z <= 0. && p0.z > 0.) || (p0.z <= 0. && p2.z > 0.) {
-                    if (cond2 >> i) & 0x1 != 0 {
-                        let (a2, b2) = unsafe{ ab2.unwrap_unchecked() };
-                        unsafe{ emit(a2.extract_unchecked(i), b2.extract_unchecked(i)) }
-                        n += 1;
-                    }
-
-
-                // }
+                if (cond0 >> i) & 0x1 != 0 {
+                    let (a0, b0) = unsafe{ ab0.unwrap_unchecked() };
+                    unsafe{ emit(a0.extract_unchecked(i), b0.extract_unchecked(i)) }
+                    n += 1;
+                }
+                if (cond1 >> i) & 0x1 != 0 {
+                    let (a1, b1) = unsafe{ ab1.unwrap_unchecked() };
+                    unsafe{ emit(a1.extract_unchecked(i), b1.extract_unchecked(i)) }
+                    n += 1;
+                }
+                if (cond2 >> i) & 0x1 != 0 {
+                    let (a2, b2) = unsafe{ ab2.unwrap_unchecked() };
+                    unsafe{ emit(a2.extract_unchecked(i), b2.extract_unchecked(i)) }
+                    n += 1;
+                }
             }
         }
         debug_assert_eq!(n % 2, 0)
