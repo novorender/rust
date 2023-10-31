@@ -316,7 +316,7 @@ impl Drop for Schema {
 #[wasm_bindgen]
 pub fn bench_intersections() {
     extern crate test;
-    use glam::*;
+    use na::*;
     use rand::random;
     use std::cell::UnsafeCell;
 
@@ -325,11 +325,11 @@ pub fn bench_intersections() {
     fn model_local_matrix(local_space_translation: Vec3, offset: Vec3, scale: f32) -> Mat4 {
         let (ox, oy, oz) = (offset.x, offset.y, offset.z);
         let (tx, ty, tz) = (local_space_translation.x, local_space_translation.y, local_space_translation.z);
-        mat4(
-            vec4(scale, 0., 0., 0.),
-            vec4(0., scale, 0., 0.),
-            vec4(0., 0., scale, 0.),
-            vec4(ox - tx, oy - ty, oz - tz, 1.),
+        Mat4::new(
+            scale, 0., 0., 0.,
+            0., scale, 0., 0.,
+            0., 0., scale, 0.,
+            ox - tx, oy - ty, oz - tz, 1.,
         )
     }
 
@@ -387,7 +387,7 @@ pub fn bench_intersections() {
     }));
 
     crate::log!("random idx: {}", easybench_wasm::bench(|| {
-        let idx = test::black_box(sequential_idx.as_slice());
+        let idx = test::black_box(random_idx.as_slice());
         let pos = test::black_box(pos.as_slice());
         let model_to_plane_mat = test::black_box(model_to_plane_mat);
         let output = test::black_box(unsafe{ &mut *output.get() });
