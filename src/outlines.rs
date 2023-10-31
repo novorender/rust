@@ -388,7 +388,7 @@ pub fn ortho_normal_basis_matrix_from_plane(plane: Vec4) -> Mat4 {
     }else{
         2
     };
-    let mut axis_y = vec3(0., 0., 0.);
+    let mut axis_y = vec3!(0.);
     axis_y[min_i] = 1.;
     let axis_x = axis_y.cross(&axis_z).normalize();
     axis_y = axis_z.cross(&axis_x).normalize();
@@ -404,7 +404,7 @@ pub fn ortho_normal_basis_matrix_from_plane(plane: Vec4) -> Mat4 {
 pub fn plane_matrices(plane: Vec4, local_space_translation: Vec3) -> (Mat4, Mat4) {
     let normal = plane.xyz();
     let distance = -plane.w - local_space_translation.dot(&normal);
-    let plane_ls = vec4(normal.x, normal.y, normal.z, -distance);
+    let plane_ls = vec4!(normal, -distance);
     let plane_local_matrix = ortho_normal_basis_matrix_from_plane(plane_ls);
     let local_plane_matrix = plane_local_matrix.try_inverse().unwrap();
     (plane_local_matrix, local_plane_matrix)
