@@ -95,7 +95,7 @@ pub struct RenderNode<'a> {
     pub node: OctreeNode<'a>,
 }
 
-const DENORM_MATRIX: Mat4 = {
+pub const DENORM_MATRIX: Mat4 = {
     let s = 1. / 32767.5;
     let o = 0.5 * s;
     mat4(
@@ -261,6 +261,37 @@ pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], pos: &[i16], model_to
     }
 
     n / 2
+}
+
+pub fn ortho_normal_basis_matrix_from_plane(plane: Vec4) -> Mat4 {
+    let axis_z = plane.xyz();
+    let min_i = if plane.x.abs() < plane.y.abs() && plane.x.abs() < plane.z.abs() {
+        0
+    }else if plane.y.abs() < plane.z.abs() {
+        1
+    }else{
+        2
+    };
+    let mut axis_y = vec3(0., 0., 0.);
+    axis_y[min_i] = 1.;
+    let axis_x = axis_y.cross(axis_z).normalize();
+    axis_y = axis_z.cross(axis_x).normalize();
+    let offset = plane.w;
+    mat4(
+        vec4(axis_x.x, axis_x.y, axis_x.z, 0.),
+        vec4(axis_y.x, axis_y.y, axis_y.z, 0.),
+        vec4(axis_z.x, axis_z.y, axis_z.z, 0.),
+        vec4(axis_z.x * -offset, axis_z.y * -offset, axis_z.z * -offset, 1.),
+    )
+}
+
+pub fn plane_matrices(plane: Vec4, local_space_translation: Vec3) -> (Mat4, Mat4) {
+    let normal = plane.xyz();
+    let distance = -plane.w - local_space_translation.dot(normal);
+    let plane_ls = vec4(normal.x, normal.y, normal.z, -distance);
+    let plane_local_matrix = ortho_normal_basis_matrix_from_plane(plane_ls);
+    let local_plane_matrix = plane_local_matrix.inverse();
+    (plane_local_matrix, local_plane_matrix)
 }
 
 #[wasm_bindgen]
