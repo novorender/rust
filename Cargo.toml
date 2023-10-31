@@ -33,6 +33,9 @@ densevec = "0.5.1"
 nalgebra = "0.32.3"
 na = "0.32.2"
 simba = "0.8.1"
+easybench-wasm = { version = "0.2", optional = true }
+rand = { version = "0.8.5", optional = true }
+getrandom = { version = "0.2.10", features = ["js"], optional=true }
 
 [target.'cfg(not(target_family="wasm"))'.dependencies]
 log = "0.4.20"
@@ -70,4 +73,5 @@ console = ["web-sys", "console_error_panic_hook"]
 checked_types = []
 memory-monitor = ["cap"]
 unstable = []
+wasm-bindgen-bench = ["easybench-wasm", "rand", "getrandom/js", "console"]
 # default = ["console", "checked_types"]
