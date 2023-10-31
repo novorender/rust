@@ -387,7 +387,7 @@ pub fn bench_intersections() {
     }));
 
     crate::log!("random idx: {}", easybench_wasm::bench(|| {
-        let idx = test::black_box(sequential_idx.as_slice());
+        let idx = test::black_box(random_idx.as_slice());
         let pos = test::black_box(pos.as_slice());
         let model_to_plane_mat = test::black_box(model_to_plane_mat);
         let output = test::black_box(unsafe{ &mut *output.get() });
