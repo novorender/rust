@@ -182,8 +182,9 @@ mod benches {
             [p0.0, p0.1, p0.2, p1.0, p1.1, p1.2, p2.0, p2.1, p2.2]
         }).collect::<Vec<_>>();
 
-        let idx = (0u32 .. 1_000_000).flat_map(|_| {
-            let i = (random::<f32>() * 1_000_000.) as u32;
+        let idx = (0u32 .. 1_000_000).flat_map(|i| {
+            let idx_offset = ((random::<f32>() * 2. - 1.) * 100.) as u32;
+            let i = (i + idx_offset).min(999_999);
             [i * 3 + 0, i * 3 + 1, i * 3 + 2]
         }).collect::<Vec<_>>();
 
