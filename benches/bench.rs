@@ -93,7 +93,6 @@ mod benches {
         });
     }
 
-
     #[bench]
     fn geometry(b: &mut test::Bencher) {
         use std::io::Read;
@@ -113,6 +112,8 @@ mod benches {
         });
     }
 
+    const INTERSECTIONS_LEN: usize = 1_000_000;
+
     #[bench]
     fn intersections(b: &mut test::Bencher) {
         use glam::*;
@@ -128,20 +129,20 @@ mod benches {
             )
         }
 
-        let pos = (0..1_000_000).flat_map(|_| {
+        let pos = (0..INTERSECTIONS_LEN).flat_map(|_| {
             let p0 = (random::<i16>(), random::<i16>(), random::<i16>());
             let p1 = (random::<i16>(), random::<i16>(), random());
             let p2 = (random::<i16>(), random::<i16>(), random::<i16>());
             [p0.0, p0.1, p0.2, p1.0, p1.1, p1.2, p2.0, p2.1, p2.2]
         }).collect::<Vec<_>>();
 
-        let idx = (0u32 .. 1_000_000).flat_map(|i|
+        let idx = (0u32 .. INTERSECTIONS_LEN as u32).flat_map(|i|
             [i * 3 + 0, i * 3 + 1, i * 3 + 2]
         ).collect::<Vec<_>>();
 
         let mut arena = Arena::new();
 
-        let mut output = vec![0.; 10_000_000];
+        let mut output = vec![0.; INTERSECTIONS_LEN * 10];
 
         let local_space_translation = vec3(100., 10., 1000.);
         let offset = vec3(10., 1000., 10000.);
@@ -178,21 +179,21 @@ mod benches {
             )
         }
 
-        let pos = (0..1_000_000).flat_map(|_| {
+        let pos = (0..INTERSECTIONS_LEN).flat_map(|_| {
             let p0 = (random::<i16>(), random::<i16>(), random::<i16>());
             let p1 = (random::<i16>(), random::<i16>(), random());
             let p2 = (random::<i16>(), random::<i16>(), random::<i16>());
             [p0.0, p0.1, p0.2, p1.0, p1.1, p1.2, p2.0, p2.1, p2.2]
         }).collect::<Vec<_>>();
 
-        let idx = (0u32 .. 1_000_000).flat_map(|_| {
-            let i = (random::<f32>() * 1_000_000.) as u32;
+        let idx = (0 .. INTERSECTIONS_LEN).flat_map(|_| {
+            let i = (random::<f32>() * INTERSECTIONS_LEN as f32) as u32;
             [i * 3 + 0, i * 3 + 1, i * 3 + 2]
         }).collect::<Vec<_>>();
 
         let mut arena = Arena::new();
 
-        let mut output = vec![0.; 10_000_000];
+        let mut output = vec![0.; INTERSECTIONS_LEN * 10];
 
         let local_space_translation = vec3(100., 10., 1000.);
         let offset = vec3(10., 1000., 10000.);
@@ -229,22 +230,22 @@ mod benches {
             )
         }
 
-        let pos = (0..1_000_000).flat_map(|_| {
+        let pos = (0..INTERSECTIONS_LEN).flat_map(|_| {
             let p0 = (random::<i16>(), random::<i16>(), random::<i16>());
             let p1 = (random::<i16>(), random::<i16>(), random());
             let p2 = (random::<i16>(), random::<i16>(), random::<i16>());
             [p0.0, p0.1, p0.2, p1.0, p1.1, p1.2, p2.0, p2.1, p2.2]
         }).collect::<Vec<_>>();
 
-        let idx = (0u32 .. 1_000_000).flat_map(|i| {
+        let idx = (0u32 .. INTERSECTIONS_LEN as u32).flat_map(|i| {
             let idx_offset = ((random::<f32>() * 2. - 1.) * 100.) as u32;
-            let i = (i + idx_offset).min(999_999);
+            let i = (i + idx_offset).min(INTERSECTIONS_LEN as u32 - 1);
             [i * 3 + 0, i * 3 + 1, i * 3 + 2]
         }).collect::<Vec<_>>();
 
         let mut arena = Arena::new();
 
-        let mut output = vec![0.; 10_000_000];
+        let mut output = vec![0.; INTERSECTIONS_LEN * 10];
 
         let local_space_translation = vec3(100., 10., 1000.);
         let offset = vec3(10., 1000., 10000.);
