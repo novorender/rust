@@ -30,6 +30,9 @@ bumpalo = { version = "3.14.0", features = ["allocator-api2"] }
 allocator-api2 = "0.2.16"
 glam = "0.24.2"
 densevec = "0.5.1"
+nalgebra = "0.32.3"
+na = "0.32.2"
+simba = "0.8.1"
 
 [target.'cfg(not(target_family="wasm"))'.dependencies]
 log = "0.4.20"
