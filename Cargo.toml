@@ -58,6 +58,7 @@ web-sys = { version = "0.3.64", features = [
 reqwest = { version = "0.11", features = ["blocking"] }
 anyhow = "1.0.75"
 rand = "0.8.5"
+criterion = { version = "0.5.1", features = ["html_reports"] }
 
 [profile.release]
 lto =  true
@@ -75,3 +76,7 @@ memory-monitor = ["cap"]
 unstable = []
 wasm-bindgen-bench = ["easybench-wasm", "rand", "getrandom/js", "console"]
 # default = ["console", "checked_types"]
+
+[[bench]]
+name = "bench"
+harness = false
