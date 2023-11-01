@@ -320,7 +320,7 @@ pub fn bench_intersections() {
     use rand::random;
     use std::cell::UnsafeCell;
 
-    const INTERSECTIONS_LEN: usize = 50_000;
+    const INTERSECTIONS_LEN: usize = 1_000_000;
 
     fn model_local_matrix(local_space_translation: Vec3, offset: Vec3, scale: f32) -> Mat4 {
         let (ox, oy, oz) = (offset.x, offset.y, offset.z);
