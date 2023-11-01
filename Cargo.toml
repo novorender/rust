@@ -77,3 +77,6 @@ wasm-bindgen-bench = ["easybench-wasm", "rand", "getrandom/js", "console"]
 [[bench]]
 name = "bench"
 harness = false
+
+[patch.crates-io]
+easybench-wasm = { git = "https://github.com/arturoc/easybench-wasm", rev="e1281f8" }
