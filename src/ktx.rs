@@ -84,14 +84,19 @@ impl Ktx<'_> {
             let images = Array::new_with_length(mips);
             images.fill(&Array::new().into(), 0, mips);
             for image in ImageIterator::new(&self.image_data, &self.header) {
+                let buffer = js_sys::Uint8Array::new_with_length(image.buffer.len() as u32);
+                buffer.copy_from(image.buffer);
+
                 let mip: Array = images.get(image.mip).into();
-                mip.set(image.face, unsafe{ Uint8Array::view(image.buffer) }.into())
+                mip.set(image.face, buffer.into())
             }
             images
         }else{
             let images = Array::new_with_length(mips);
             for image in ImageIterator::new(&self.image_data, &self.header) {
-                images.set(image.mip, unsafe{ Uint8Array::view(image.buffer) }.into())
+                let buffer = js_sys::Uint8Array::new_with_length(image.buffer.len() as u32);
+                buffer.copy_from(image.buffer);
+                images.set(image.mip, buffer.into())
             }
             images
         }
