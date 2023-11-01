@@ -2,7 +2,7 @@
 use crate::{types_2_1::*, parser::{_2_1::{NodeData, ReturnSubMesh}, Indices}};
 use densevec::DenseVec;
 use glam::*;
-use js_sys::{Uint16Array, Int16Array, Uint32Array, Float32Array};
+use js_sys::{Uint16Array, Int16Array, Uint32Array, Float32Array, Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Clone, Copy)]
@@ -188,6 +188,7 @@ impl OutlineRenderer {
                         Indices::IndexBuffer16(idx_buff) => {
                             intersect_triangles(
                                 &idx_buff[begin .. end],
+                                object_range.object_id,
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
                                 buffer
@@ -196,6 +197,7 @@ impl OutlineRenderer {
                         Indices::IndexBuffer32(idx_buff) => {
                             intersect_triangles(
                                 &idx_buff[begin .. end],
+                                object_range.object_id,
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
                                 buffer
@@ -227,12 +229,19 @@ impl OutlineRenderer {
 
 // TODO: usize can't be converted from u32 directly, we are doing two conversions for u16 -> u32 -> usize
 // surely optimized by the compiler but check
-pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], pos: &[i16], model_to_plane_mat: Mat4, output: &mut [f32]) -> u32 {
+pub fn intersect_triangles<I: Into<u32> + Copy>(idx: &[I], object_id: u32, pos: &[i16], model_to_plane_mat: Mat4, output: &mut [f32]) -> u32 {
     let mut offset = 0;
+    let mut n = 0;
     let mut emit = move |x, y| {
         output[offset + 0] = x;
         output[offset + 1] = y;
         offset += 2;
+        n += 1;
+        if n % 2 == 0 {
+            output[offset + 0] = bytemuck::cast(0xff00_00ffu32);
+            output[offset + 1] = bytemuck::cast(object_id);
+            offset += 2;
+        }
     };
 
     debug_assert_eq!(idx.len() % 3, 0);
@@ -304,15 +313,13 @@ pub fn allocate_mat4(mat: &[f32]) -> WasmMat4 {
 
 #[wasm_bindgen]
 pub fn intersect_triangles_u16(
-    idx: Uint16Array,
+    idx_views: Array,
+    object_ids: Array,
     pos: Int16Array,
     model_to_plane_mat: &WasmMat4,
     output: Float32Array) -> u32
 {
-    let idx = unsafe{ std::slice::from_raw_parts(
-        idx.byte_offset() as usize as *const u16,
-        idx.length() as usize
-    )};
+    let mut lines = 0;
     let pos = unsafe{ std::slice::from_raw_parts(
         pos.byte_offset() as usize as *const i16,
         pos.length() as usize
@@ -321,21 +328,30 @@ pub fn intersect_triangles_u16(
         output.byte_offset() as usize as *mut f32,
         output.length() as usize
     )};
+    let mut offset = 0;
+    for (idx, object_id) in idx_views.to_vec().into_iter().zip(object_ids.to_vec()) {
+        let idx: Uint16Array = idx.into();
+        let object_id = object_id.unchecked_into_f64() as u32;
+        let idx = unsafe{ std::slice::from_raw_parts(
+            idx.byte_offset() as usize as *const u16,
+            idx.length() as usize
+        )};
 
-    intersect_triangles(idx, pos, model_to_plane_mat.0, output)
+        lines += intersect_triangles(idx, object_id, pos, model_to_plane_mat.0, &mut output[offset..]);
+        offset = lines as usize * 6;
+    }
+    lines
 }
 
 #[wasm_bindgen]
 pub fn intersect_triangles_u32(
-    idx: Uint32Array,
+    idx_views: Array,
+    object_ids: Array,
     pos: Int16Array,
     model_to_plane_mat: &WasmMat4,
     output: Float32Array) -> u32
 {
-    let idx = unsafe{ std::slice::from_raw_parts(
-        idx.byte_offset() as usize as *const u32,
-        idx.length() as usize
-    )};
+    let mut lines = 0;
     let pos = unsafe{ std::slice::from_raw_parts(
         pos.byte_offset() as usize as *const i16,
         pos.length() as usize
@@ -344,8 +360,19 @@ pub fn intersect_triangles_u32(
         output.byte_offset() as usize as *mut f32,
         output.length() as usize
     )};
+    let mut offset = 0;
+    for (idx, object_id) in idx_views.to_vec().into_iter().zip(object_ids.to_vec()) {
+        let object_id = object_id.unchecked_into_f64() as u32;
+        let idx: Uint32Array = idx.into();
+        let idx = unsafe{ std::slice::from_raw_parts(
+            idx.byte_offset() as usize as *const u32,
+            idx.length() as usize
+        )};
 
-    intersect_triangles(idx, pos, model_to_plane_mat.0, output)
+        lines += intersect_triangles(idx, object_id, pos, model_to_plane_mat.0, &mut output[offset..]);
+        offset = lines as usize * 6;
+    }
+    lines
 }
 
 #[inline(always)]
