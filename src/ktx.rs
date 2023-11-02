@@ -1,12 +1,12 @@
 use std::{mem::size_of, ops::Range, fmt::Debug};
 
-use js_sys::{Array, Uint8Array};
+use js_sys::Array;
 use wasm_bindgen::prelude::*;
 use anyhow::{Result, anyhow};
 use endianness::ByteOrder;
 use crate::gl_bindings as gl;
 
-use crate::parser::{ArrayUint8ArrayOrUndefined, Uint8ArrayOrUndefined};
+use crate::js_types::{ArrayUint8ArrayOrUndefined, Uint8ArrayOrUndefined};
 
 static IDENTIFIER_KTX1: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];
 static IDENTIFIER_KTX2: [u8;12] = [0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A];

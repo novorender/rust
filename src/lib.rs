@@ -34,7 +34,7 @@ pub mod ktx;
 pub mod interleaved;
 pub mod outlines;
 mod gl_bindings;
-
+mod js_types;
 
 #[cfg(all(feature = "console", target_family = "wasm"))]
 #[macro_export]

@@ -10,6 +10,7 @@ use bumpalo::Bump;
 use crate::thin_slice::ThinSlice;
 use crate::range::RangeSlice;
 use crate::ktx::*;
+use crate::js_types::*;
 
 pub struct Optionals<'a, const NUM_OPTIONALS: usize> {
     flags: &'a [u8; NUM_OPTIONALS],
@@ -283,32 +284,6 @@ pub struct DrawRange {
     pub byte_offset: usize,
     pub first: usize,
     pub count: usize,
-}
-
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(typescript_type = "Array<DrawRange>")]
-    pub type ArrayDrawRange;
-    #[wasm_bindgen(typescript_type = "Array<MeshObjectRange>")]
-    pub type ArrayObjectRange;
-    #[wasm_bindgen(typescript_type = "Array<Uint8Array>")]
-    pub type ArrayUint8Array;
-    #[wasm_bindgen(typescript_type = "Array<Uint8Array> | undefined")]
-    pub type ArrayUint8ArrayOrUndefined;
-    #[wasm_bindgen(typescript_type = "Uint8Array | undefined")]
-    pub type Uint8ArrayOrUndefined;
-    #[wasm_bindgen(typescript_type = r#""POINTS" | "LINES" | "LINE_LOOP" | "LINE_STRIP" | "TRIANGLES" | "TRIANGLE_STRIP" | "TRIANGLE_FAN""#)]
-    pub type PrimitiveTypeStr;
-    #[wasm_bindgen(typescript_type = "ShaderAttributeType")]
-    pub type ShaderAttributeType;
-    #[wasm_bindgen(typescript_type = "ComponentType")]
-    pub type ComponentType;
-    #[wasm_bindgen(typescript_type = "1 | 2 | 3 | 4")]
-    pub type ComponentCount;
-    #[wasm_bindgen(typescript_type = "readonly number[]")]
-    pub type Float3x3AsArray;
-    #[wasm_bindgen(typescript_type = "TextureParams")]
-    pub type TextureParams;
 }
 
 #[wasm_bindgen]
