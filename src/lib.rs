@@ -373,7 +373,7 @@ pub fn bench_intersections() {
         let pos = test::black_box(pos.as_slice());
         let model_to_plane_mat = test::black_box(model_to_plane_mat);
         let output = test::black_box(unsafe{ &mut *output.get() });
-        crate::outlines::intersect_triangles(idx, 0, pos, model_to_plane_mat, output);
+        crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
 
@@ -382,7 +382,7 @@ pub fn bench_intersections() {
         let pos = test::black_box(pos.as_slice());
         let model_to_plane_mat = test::black_box(model_to_plane_mat);
         let output = test::black_box(unsafe{ &mut *output.get() });
-        crate::outlines::intersect_triangles(idx, 0, pos, model_to_plane_mat, output);
+        crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
 
@@ -391,7 +391,7 @@ pub fn bench_intersections() {
         let pos = test::black_box(pos.as_slice());
         let model_to_plane_mat = test::black_box(model_to_plane_mat);
         let output = test::black_box(unsafe{ &mut *output.get() });
-        crate::outlines::intersect_triangles(idx, 0, pos, model_to_plane_mat, output);
+        crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
 }
