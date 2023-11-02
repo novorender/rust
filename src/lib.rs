@@ -1,6 +1,3 @@
-// #![cfg_attr(target_family="wasm", no_std)]
-#![cfg_attr(feature="wasm-bindgen-bench", feature(test))]
-
 #[cfg(feature="cap")]
 use std::alloc;
 #[cfg(feature="cap")]
@@ -315,10 +312,10 @@ impl Drop for Schema {
 #[cfg(feature="wasm-bindgen-bench")]
 #[wasm_bindgen]
 pub fn bench_intersections() {
-    extern crate test;
     use glam::*;
     use rand::random;
     use std::cell::UnsafeCell;
+    use std::hint::black_box;
 
     const INTERSECTIONS_LEN: usize = 1_000_000;
 
@@ -369,28 +366,28 @@ pub fn bench_intersections() {
     let model_to_plane_mat = local_plane_matrix * model_local_matrix * crate::outlines::DENORM_MATRIX;
 
     crate::log!("sequential idx: {}", easybench_wasm::bench(|| {
-        let idx = test::black_box(sequential_idx.as_slice());
-        let pos = test::black_box(pos.as_slice());
-        let model_to_plane_mat = test::black_box(model_to_plane_mat);
-        let output = test::black_box(unsafe{ &mut *output.get() });
+        let idx = black_box(sequential_idx.as_slice());
+        let pos = black_box(pos.as_slice());
+        let model_to_plane_mat = black_box(model_to_plane_mat);
+        let output = black_box(unsafe{ &mut *output.get() });
         crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
 
     crate::log!("random offset idx: {}", easybench_wasm::bench(|| {
-        let idx = test::black_box(random_offset_idx.as_slice());
-        let pos = test::black_box(pos.as_slice());
-        let model_to_plane_mat = test::black_box(model_to_plane_mat);
-        let output = test::black_box(unsafe{ &mut *output.get() });
+        let idx = black_box(random_offset_idx.as_slice());
+        let pos = black_box(pos.as_slice());
+        let model_to_plane_mat = black_box(model_to_plane_mat);
+        let output = black_box(unsafe{ &mut *output.get() });
         crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
 
     crate::log!("random idx: {}", easybench_wasm::bench(|| {
-        let idx = test::black_box(random_idx.as_slice());
-        let pos = test::black_box(pos.as_slice());
-        let model_to_plane_mat = test::black_box(model_to_plane_mat);
-        let output = test::black_box(unsafe{ &mut *output.get() });
+        let idx = black_box(random_idx.as_slice());
+        let pos = black_box(pos.as_slice());
+        let model_to_plane_mat = black_box(model_to_plane_mat);
+        let output = black_box(unsafe{ &mut *output.get() });
         crate::outlines::intersect_triangles(idx, pos, model_to_plane_mat, output);
         output
     }));
