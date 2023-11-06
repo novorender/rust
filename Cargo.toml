@@ -79,4 +79,4 @@ name = "bench"
 harness = false
 
 [patch.crates-io]
-easybench-wasm = { git = "https://github.com/arturoc/easybench-wasm", rev="e1281f8" }
+easybench-wasm = { git = "https://github.com/arturoc/easybench-wasm", rev="ca01e6299def062fb9402ebd5c9a3fc4ebce36ee" }
