@@ -65,19 +65,37 @@ pub struct Reader<'a> {
     pub(crate) next: usize
 }
 
+fn from_bytes_unchecked<T>(data: &[u8]) -> &T{
+    unsafe { &*(data.as_ptr() as *const T) }
+}
+
 impl<'a> Reader<'a> {
+    #[inline]
     pub fn read<T: bytemuck::Pod>(&mut self) -> &'a T {
+        #[cfg(not(feature = "checked_types"))]
+        let ret = from_bytes_unchecked(&self.data[self.next..self.next + size_of::<T>()]);
+
+        #[cfg(feature = "checked_types")]
         let ret = bytemuck::from_bytes(&self.data[self.next..self.next + size_of::<T>()]);
+
         self.next += size_of::<T>();
         ret
     }
 
+    #[inline]
     pub fn read_checked<T: bytemuck::CheckedBitPattern>(&mut self) -> &'a T {
-        let ret = bytemuck::checked::from_bytes(&self.data[self.next..self.next + size_of::<T>()]);
+        #[cfg(not(feature = "checked_types"))]
+        let ret = from_bytes_unchecked(&self.data[self.next..self.next + size_of::<T>()]);
+
+        #[cfg(feature = "checked_types")]
+        let ret = bytemuck::from_bytes(&self.data[self.next..self.next + size_of::<T>()]);
+
+
         self.next += size_of::<T>();
         ret
     }
 
+    #[inline]
     pub fn read_slice<T: Pod + 'a>(&mut self, len: u32) -> ThinSlice<'a, T> {
         if len > 0 {
             self.next += align::<T>(self.next);
@@ -99,6 +117,7 @@ impl<'a> Reader<'a> {
 
     }
 
+    #[inline]
     pub fn read_checked_slice<T: CheckedBitPattern + 'a>(&mut self, len: u32) -> ThinSlice<'a, T> {
         if len > 0 {
             self.next += align::<T>(self.next);
@@ -119,6 +138,7 @@ impl<'a> Reader<'a> {
         }
     }
 
+    #[inline]
     pub fn read_range<T: Pod + 'a>(&mut self, len: u32) -> RangeSlice<'a, T> {
         RangeSlice{ start: self.read_slice(len), count: self.read_slice(len) }
     }
