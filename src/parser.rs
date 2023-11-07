@@ -432,49 +432,46 @@ impl VertexBufferIndex {
             .max(self.pos as i8)
             .max(self.highlight as i8)
             .max(self.primary as i8) as u32;
-        let vertex_buffers = js_sys::Array::new_with_length(len);
+        let vertex_buffers = js_sys::Array::new_with_length(len + 1);
 
         // primary
-        let typed_array = js_sys::Uint8Array::new_with_length(possible_buffers.primary.len() as u32);
-        typed_array.copy_from(&possible_buffers.primary);
-        vertex_buffers.set(self.primary as u32, typed_array.buffer().into());
+        let typed_array = unsafe{ js_sys::Uint8Array::view(&possible_buffers.primary) };
+        vertex_buffers.set(self.primary as u32, typed_array.into());
 
         // highlight
+        // needs to be copied since it's used after the arena is freed as applyHighlights is called on the
+        // main thread later on after having parsed the mesh
         let typed_array = js_sys::Uint8Array::new_with_length(possible_buffers.highlight.len() as u32);
         typed_array.copy_from(&possible_buffers.highlight);
-        vertex_buffers.set(self.highlight as u32, typed_array.buffer().into());
+        vertex_buffers.set(self.highlight as u32, typed_array.into());
 
         // pos
         let pos = bytemuck::cast_slice(&possible_buffers.pos);
-        let typed_array = js_sys::Uint8Array::new_with_length(pos.len() as u32);
-        typed_array.copy_from(pos);
-        vertex_buffers.set(self.pos as u32, typed_array.buffer().into());
+        let typed_array = unsafe{ js_sys::Uint8Array::view(pos) };
+        vertex_buffers.set(self.pos as u32, typed_array.into());
 
         // tri_pos
         if let Some(tri_pos) = possible_buffers.tri_pos.as_ref() {
             let tri_pos = bytemuck::cast_slice(&tri_pos);
-            let typed_array = js_sys::Uint8Array::new_with_length(tri_pos.len() as u32);
-            typed_array.copy_from(tri_pos);
+            let typed_array = unsafe{ js_sys::Uint8Array::view(tri_pos) };
             let index = self.tri_pos.get();
-            vertex_buffers.set(index as u32, typed_array.buffer().into());
+            vertex_buffers.set(index as u32, typed_array.into());
         }
 
         // tri_id
         if let Some(tri_id) = possible_buffers.tri_id.as_ref() {
             let tri_id = bytemuck::cast_slice(&tri_id);
-            let typed_array = js_sys::Uint8Array::new_with_length(tri_id.len() as u32);
-            typed_array.copy_from(tri_id);
+            let typed_array = unsafe{ js_sys::Uint8Array::view(tri_id) };
             let index = self.tri_id.get();
-            vertex_buffers.set(index as u32, typed_array.buffer().into());
+            vertex_buffers.set(index as u32, typed_array.into());
         }
 
         // highlight_tri
         if let Some(highlight_tri) = possible_buffers.highlight_tri.as_ref() {
             let highlight_tri = bytemuck::cast_slice(&highlight_tri);
-            let typed_array = js_sys::Uint8Array::new_with_length(highlight_tri.len() as u32);
-            typed_array.copy_from(highlight_tri);
+            let typed_array = unsafe{ js_sys::Uint8Array::view(highlight_tri) };
             let index = self.highlight_tri.get();
-            vertex_buffers.set(index as u32, typed_array.buffer().into());
+            vertex_buffers.set(index as u32, typed_array.into());
         }
 
         let js_value: JsValue = vertex_buffers.into();
@@ -511,7 +508,6 @@ macro_rules! impl_parser {
         use crate::interleaved::*;
 
         use hashbrown::{HashMap, hash_map::Entry};
-        use js_sys::Array;
         use wasm_bindgen::JsValue;
 
         impl std::ops::Add for Float3 {
@@ -864,18 +860,19 @@ macro_rules! impl_parser {
             pub fn indices(&self) -> crate::js_types::Indices {
                 let js_value: JsValue = match &self.indices {
                     Indices::IndexBuffer16(buffer) => {
-                        let typed_array = js_sys::Uint16Array::new_with_length(buffer.len() as u32);
-                        typed_array.copy_from(buffer);
-                        typed_array.into()
+                        unsafe{ js_sys::Uint16Array::view(buffer) }.into()
                     }
                     Indices::IndexBuffer32(buffer) => {
-                        let typed_array = js_sys::Uint32Array::new_with_length(buffer.len() as u32);
-                        typed_array.copy_from(buffer);
-                        typed_array.into()
+                        unsafe{ js_sys::Uint32Array::view(buffer) }.into()
                     },
                     Indices::NumIndices(num_indices) => (*num_indices).into(),
                 };
                 js_value.into()
+            }
+
+            #[wasm_bindgen(getter)]
+            pub fn buffer(&self) -> JsValue {
+                unsafe{ js_sys::Uint8Array::view(&self.possible_buffers.primary) }.buffer().into()
             }
         }
 

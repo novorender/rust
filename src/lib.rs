@@ -68,9 +68,16 @@ pub struct Arena(*mut Bump);
 impl Arena {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Arena {
-        let bump = Bump::with_capacity(100 * 1024 * 1024);
-        bump.set_allocation_limit(Some(100 * 1024 * 1024));
+        let bump = Bump::with_capacity(32 * 1024);
+        bump.set_allocation_limit(Some(32 * 1024));
         Arena(Box::into_raw(Box::new(bump)))
+    }
+
+    pub fn with_capacity(size: usize) -> Arena {
+        let bump = Bump::with_capacity(size);
+        bump.set_allocation_limit(Some(size));
+        Arena(Box::into_raw(Box::new(bump)))
+
     }
 
     pub fn clone(&self) -> Arena {
@@ -304,8 +311,6 @@ impl Drop for Schema {
 
         #[cfg(feature="memory-monitor")]
         log!("Currently allocated after dropping schema: {}MB", ALLOCATOR.allocated() as f32 / 1024. / 1024.);
-
-        unsafe{ &mut *self.arena.0 }.reset();
     }
 }
 
