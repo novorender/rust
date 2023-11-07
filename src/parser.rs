@@ -846,8 +846,8 @@ macro_rules! impl_parser {
 
             #[wasm_bindgen(getter)]
             #[wasm_bindgen(js_name = "indices")]
-            pub fn indices(&self) -> JsValue {
-                match &self.indices {
+            pub fn indices(&self) -> crate::js_types::Indices {
+                let js_value: JsValue = match &self.indices {
                     Indices::IndexBuffer16(buffer) => {
                         let typed_array = js_sys::Uint16Array::new_with_length(buffer.len() as u32);
                         typed_array.copy_from(buffer);
@@ -859,7 +859,8 @@ macro_rules! impl_parser {
                         typed_array.into()
                     },
                     Indices::NumIndices(num_indices) => (*num_indices).into(),
-                }
+                };
+                js_value.into()
             }
         }
 

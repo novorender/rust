@@ -28,4 +28,6 @@ extern "C" {
     pub type Float3x3AsArray;
     #[wasm_bindgen(typescript_type = "TextureParams")]
     pub type TextureParams;
+    #[wasm_bindgen(typescript_type = "Uint16Array | Uint32Array | number")]
+    pub type Indices;
 }
