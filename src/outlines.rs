@@ -164,7 +164,7 @@ impl OutlineRenderer {
                 continue;
             }
 
-            for draw_range in mesh.draw_ranges.as_ref().unwrap() {
+            for draw_range in &mesh.draw_ranges {
                 let child_builder = child_builders
                     .entry(draw_range.child_index as usize)
                     .or_insert_with(|| NodeIntersectionBuilder { clusters: vec![] });
@@ -173,7 +173,7 @@ impl OutlineRenderer {
                 let end_triangle = begin_triangle + draw_range.count / 3;
 
 
-                for object_range in mesh.object_ranges.as_ref().unwrap() {
+                for object_range in &mesh.object_ranges {
                     if object_range.begin_triangle < begin_triangle
                         || object_range.end_triangle > end_triangle
                     {
@@ -186,7 +186,7 @@ impl OutlineRenderer {
                     let lines = match &mesh.indices {
                         Indices::IndexBuffer16(idx_buff) => {
                             intersect_triangles(
-                                &idx_buff[begin .. end],
+                                &idx_buff[begin as usize .. end as usize],
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
                                 buffer
@@ -194,7 +194,7 @@ impl OutlineRenderer {
                         }
                         Indices::IndexBuffer32(idx_buff) => {
                             intersect_triangles(
-                                &idx_buff[begin .. end],
+                                &idx_buff[begin as usize .. end as usize],
                                 &mesh.possible_buffers.pos,
                                 model_to_plane_mat,
                                 buffer
