@@ -262,28 +262,33 @@ impl Highlights {
 
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
 pub struct MeshObjectRange {
     #[wasm_bindgen(js_name = objectId)]
     pub object_id: u32,
     #[wasm_bindgen(js_name = beginVertex)]
-    pub begin_vertex: usize,
+    pub begin_vertex: u32,
     #[wasm_bindgen(js_name = endVertex)]
-    pub end_vertex: usize,
+    pub end_vertex: u32,
     #[wasm_bindgen(js_name = beginTriangle)]
-    pub begin_triangle: usize,
+    pub begin_triangle: u32,
     #[wasm_bindgen(js_name = endTriangle)]
-    pub end_triangle: usize,
+    pub end_triangle: u32,
 }
 
 #[wasm_bindgen]
 #[derive(Clone, Copy)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
 pub struct DrawRange {
     #[wasm_bindgen(js_name = childIndex)]
     pub child_index: u8,
+    pad: [u8;3],
     #[wasm_bindgen(js_name = byteOffset)]
-    pub byte_offset: usize,
-    pub first: usize,
-    pub count: usize,
+    pub byte_offset: u32,
+    pub first: u32,
+    pub count: u32,
 }
 
 #[wasm_bindgen]
@@ -789,13 +794,13 @@ macro_rules! impl_parser {
             #[wasm_bindgen(js_name = "numTriangles")]
             pub num_triangles: u32,
             #[wasm_bindgen(skip)]
-            pub object_ranges: Option<Vec<MeshObjectRange, &'static Bump>>,
+            pub object_ranges: Vec<MeshObjectRange, &'static Bump>,
             #[wasm_bindgen(skip)]
             pub indices: Indices,
             #[wasm_bindgen(js_name = "baseColorTexture")]
             pub base_color_texture: Option<u32>,
             #[wasm_bindgen(skip)]
-            pub draw_ranges: Option<Vec<DrawRange, &'static Bump>>,
+            pub draw_ranges: Vec<DrawRange, &'static Bump>,
             #[wasm_bindgen(skip)]
             pub possible_buffers: PossibleBuffers,
             #[wasm_bindgen(skip)]
@@ -817,13 +822,8 @@ macro_rules! impl_parser {
 
             #[wasm_bindgen(getter)]
             #[wasm_bindgen(js_name = "objectRanges")]
-            pub fn object_ranges(&mut self) -> ArrayObjectRange {
-                let array: Array = self.object_ranges.take().unwrap()
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                let js_value: JsValue = array.into();
-                js_value.into()
+            pub fn object_ranges(&mut self) -> js_sys::Uint32Array {
+                unsafe{ js_sys::Uint32Array::view(bytemuck::cast_slice(&self.object_ranges)) }
             }
 
 
@@ -835,13 +835,8 @@ macro_rules! impl_parser {
 
             #[wasm_bindgen(getter)]
             #[wasm_bindgen(js_name = "drawRanges")]
-            pub fn draw_ranges(&mut self) -> ArrayDrawRange {
-                let array: Array = self.draw_ranges.take().unwrap()
-                    .into_iter()
-                    .map(JsValue::from)
-                    .collect();
-                let js_value: JsValue = array.into();
-                js_value.into()
+            pub fn draw_ranges(&mut self) -> js_sys::Uint32Array{
+                unsafe{ js_sys::Uint32Array::view(bytemuck::cast_slice(&self.draw_ranges)) }
             }
 
             #[wasm_bindgen(getter)]
@@ -1213,8 +1208,8 @@ macro_rules! impl_parser {
                             ..
                         }) = object_ranges.last_mut() {
                             if *object_id == sub_mesh.object_id {
-                                *end_vertex = sub_mesh_end_vertex;
-                                *end_triangle = sub_mesh_end_triangle;
+                                *end_vertex = sub_mesh_end_vertex as u32;
+                                *end_triangle = sub_mesh_end_triangle as u32;
                                 new_range = false;
                             }
                         }
@@ -1222,10 +1217,10 @@ macro_rules! impl_parser {
                         if new_range {
                             object_ranges.push(MeshObjectRange {
                                 object_id: sub_mesh.object_id,
-                                begin_vertex: vertex_offset,
-                                end_vertex: sub_mesh_end_vertex,
-                                begin_triangle: triangle_offset,
-                                end_triangle: sub_mesh_end_triangle,
+                                begin_vertex: vertex_offset as u32,
+                                end_vertex: sub_mesh_end_vertex as u32,
+                                begin_triangle: triangle_offset as u32,
+                                end_triangle: sub_mesh_end_triangle as u32,
                             })
                         }
 
@@ -1246,9 +1241,10 @@ macro_rules! impl_parser {
                     let count = draw_range_end - draw_range_begin;
                     draw_ranges.push(DrawRange {
                         child_index: group_meshes[0].child_index,
-                        byte_offset,
-                        first: draw_range_begin,
-                        count
+                        pad: [0;3],
+                        byte_offset: byte_offset as u32,
+                        first: draw_range_begin as u32,
+                        count: count as u32
                     });
 
                     debug_assert_eq!(
@@ -1377,12 +1373,12 @@ macro_rules! impl_parser {
                         primitive_type: *primitive_type,
                         num_vertices: num_vertices as u32,
                         num_triangles: num_triangles as u32,
-                        object_ranges: Some(object_ranges),
+                        object_ranges,
                         vertex_buffer_index,
                         possible_buffers,
                         indices,
                         base_color_texture,
-                        draw_ranges: Some(draw_ranges),
+                        draw_ranges,
                         vertex_attributes,
                     });
                 }
